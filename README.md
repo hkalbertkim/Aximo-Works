@@ -30,3 +30,21 @@ It replaces daily admin/ops work so founders can run a company alone.
 ## Infra (internal, not customer-facing)
 - OpenClaw (hosted on Alibaba Cloud initially)
 - Later: migrate infra to Krako when ready (transparent to customer)
+
+## Local CLI usage
+1. Install deps: `python3 -m pip install -r requirements.txt`
+2. Set env:
+   - `export SLACK_BOT_TOKEN="xoxb-your-token"`
+   - `export SLACK_CHANNEL="#new-channel"` (optional)
+3. Run commands:
+   - `python3 aximo_cli.py today`
+   - `python3 aximo_cli.py decided`
+   - `python3 aximo_cli.py risk`
+
+## Local LLM quick test (Ollama)
+- Models stored on NVMe:
+  - export OLLAMA_MODELS=/Volumes/KRAKO_1/ollama_models
+- Start Ollama:
+  - brew services start ollama
+- Run test:
+  - python llm_local_test.py
