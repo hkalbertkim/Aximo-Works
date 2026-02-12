@@ -48,3 +48,10 @@ It replaces daily admin/ops work so founders can run a company alone.
   - brew services start ollama
 - Run test:
   - python llm_local_test.py
+
+## Automation
+1. Create `.env` in the repo root (never commit it):
+   - `LINEAR_API_KEY=your_linear_api_key`
+   - `LINEAR_TEAM_KEY=HKA`
+2. Run the automation:
+   - `python3 scripts/aximo_linear_update_today.py`

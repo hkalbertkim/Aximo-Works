@@ -1,0 +1,23 @@
+{
+  "team": {
+    "id": "949ab9f1-1504-422f-a646-18cf1ad57082",
+    "key": "HKA",
+    "name": "Hkalbert71"
+  },
+  "states": {
+    "backlog": "92016fb1-3d9b-4384-856f-09aff55bf2b6",
+    "todo": "53cc1af3-cf02-4fd8-898b-8c97d84ef05f",
+    "in_progress": "f8e0622d-abc7-48eb-8e79-ed5fb30a65c0",
+    "done": "8cc82b83-a7d6-4bb4-98bc-39b47e297644"
+  },
+  "projects": {
+    "AXIMO": "1331c47d-cb1f-48bd-96da-a89b9b84f237",
+    "VIVIDO": "86cc1734-4154-40f2-a68c-cce44bf13bdd",
+    "SINGSYNC": "902ea012-eff3-42ca-8164-50278a05c261",
+    "MAPSOUND": "4ce70ca9-5df8-4ccb-a0aa-06af8a2af720",
+    "KRAKO2": "9f668423-27c4-47b2-b291-f0c3af96027c"
+  },
+  "defaults": {
+    "initial_state": "backlog"
+  }
+}
