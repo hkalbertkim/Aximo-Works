@@ -55,3 +55,11 @@ It replaces daily admin/ops work so founders can run a company alone.
    - `LINEAR_TEAM_KEY=HKA`
 2. Run the automation:
    - `python3 scripts/aximo_linear_update_today.py`
+
+## Daily Report Email
+- Sends a daily markdown report as email body and attaches the same `.md` file.
+- Command:
+  - `python3 scripts/send_daily_report_email.py --report docs/reports/AXIMO_DAILY_YYYY-MM-DD.md`
+- Required env vars:
+  - `GMAIL_FROM`
+  - `GMAIL_APP_PASSWORD`
