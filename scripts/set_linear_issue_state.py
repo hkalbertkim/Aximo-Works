@@ -87,7 +87,7 @@ def find_issue_id_by_team_and_number(team_id: str, number: int) -> str:
 
 def find_state_id(team_id: str, state_name: str) -> str:
     q = """
-    query($teamId: ID!) {
+    query($teamId: String!) {
       team(id: $teamId) {
         states { nodes { id name } }
       }
