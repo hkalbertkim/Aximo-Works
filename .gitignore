@@ -4,3 +4,9 @@ __pycache__/
 .env
 .env.*
 !.env.example
+backend/.env
+logs/
+*.log
+*.db-journal
+*.sqlite-journal
+backend/aximo.db

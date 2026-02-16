@@ -45,7 +45,7 @@ export default function Home() {
       setTask(data);
     } catch (e) {
       const message = e instanceof Error ? e.message : "Unknown error";
-      setError(`요청 실패: ${message}`);
+      setError(`Request failed: ${message}`);
     } finally {
       setLoading(false);
     }
@@ -72,7 +72,7 @@ export default function Home() {
       setTask(data);
     } catch (e) {
       const message = e instanceof Error ? e.message : "Unknown error";
-      setError(`승인 실패: ${message}`);
+      setError(`Approval failed: ${message}`);
     } finally {
       setApproving(false);
     }
@@ -99,7 +99,7 @@ export default function Home() {
       setTask(data);
     } catch (e) {
       const message = e instanceof Error ? e.message : "Unknown error";
-      setError(`실행 실패: ${message}`);
+      setError(`Run failed: ${message}`);
     } finally {
       setRunning(false);
     }
@@ -109,7 +109,7 @@ export default function Home() {
     <main style={{ maxWidth: "720px", margin: "40px auto", padding: "0 16px" }}>
       <h1>AXIMO – Admin Employee (MVP-0)</h1>
       <textarea
-        placeholder="대표님의 지시를 입력하세요..."
+        placeholder="Enter the founder's instruction..."
         rows={8}
         value={text}
         onChange={(e) => setText(e.target.value)}
@@ -117,19 +117,19 @@ export default function Home() {
       />
       <div style={{ marginTop: "12px" }}>
         <button type="button" onClick={onRun} disabled={loading}>
-          실행
+          Create Task
         </button>
       </div>
       <div
         id="result-box"
         style={{ minHeight: "120px", marginTop: "16px", border: "1px solid #ccc", padding: "12px" }}
       >
-        {loading || running ? "실행 중..." : null}
+        {loading || running ? "Running..." : null}
         {!loading && !running && error ? error : null}
         {!loading && !running && !error && task ? (
           <div>
-            <div>{`승인 대기: ${task.id}`}</div>
-            <div>{`상태: ${task.status}`}</div>
+            <div>{`Task ID: ${task.id}`}</div>
+            <div>{`Status: ${task.status}`}</div>
             {task.output && typeof task.output === "object" ? (
               <div style={{ marginTop: "8px" }}>
                 <div>{`Summary: ${task.output.summary ?? ""}`}</div>
@@ -156,7 +156,7 @@ export default function Home() {
           onClick={onApprove}
           disabled={!task || task.status !== "pending_approval" || approving || loading || running}
         >
-          승인
+          Approve
         </button>
         <button
           type="button"
@@ -164,7 +164,7 @@ export default function Home() {
           disabled={!task || task.status !== "approved" || running || loading || approving}
           style={{ marginLeft: "8px" }}
         >
-          실행(승인 후)
+          Run (After Approval)
         </button>
       </div>
     </main>

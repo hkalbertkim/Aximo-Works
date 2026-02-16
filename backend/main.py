@@ -1,5 +1,7 @@
 from datetime import datetime, timezone
 import json
+import os
+import sqlite3
 from typing import Literal
 import urllib.error
 import urllib.request
@@ -16,12 +18,19 @@ class IntentRequest(BaseModel):
 
 class TaskCreateRequest(BaseModel):
     text: str
+    type: Literal["internal_generate", "external_execute"] | None = None
+
+
+class TaskStatusUpdateRequest(BaseModel):
+    status: Literal["pending_approval", "approved", "done"]
 
 
 class Task(BaseModel):
     id: str
     text: str
+    type: Literal["internal_generate", "external_execute"]
     status: Literal["pending_approval", "approved", "done"]
+    parent_id: str | None = None
     created_at: str
     output: dict | None = None
     ran_at: str | None = None
@@ -34,12 +43,118 @@ class SummaryResult(BaseModel):
 
 
 app = FastAPI()
-tasks: list[Task] = []
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "https://meeting.aximo.works",
+        "http://meeting.aximo.works",
+        "https://api.aximo.works",
+        "http://api.aximo.works",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+DB_PATH = "/Users/albertkim/02_PROJECTS/03_aximo/backend/aximo.db"
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+
+
+def get_db_connection() -> sqlite3.Connection:
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def task_to_db_values(task: Task) -> tuple[str, str, str, str, str | None, str, str | None, str | None]:
+    return (
+        task.id,
+        task.text,
+        task.type,
+        task.status,
+        task.parent_id,
+        task.created_at,
+        json.dumps(task.output) if task.output is not None else None,
+        task.ran_at,
+    )
+
+
+def row_to_task(row: sqlite3.Row) -> Task:
+    output = None
+    if row["output"] is not None:
+        output = json.loads(row["output"])
+    return Task(
+        id=row["id"],
+        text=row["text"],
+        type=row["type"],
+        status=row["status"],
+        parent_id=row["parent_id"],
+        created_at=row["created_at"],
+        output=output,
+        ran_at=row["ran_at"],
+    )
+
+
+def get_task_by_id(conn: sqlite3.Connection, task_id: str) -> Task | None:
+    row = conn.execute("SELECT * FROM tasks WHERE id = ?", (task_id,)).fetchone()
+    if row is None:
+        return None
+    return row_to_task(row)
+
+
+@app.on_event("startup")
+def init_db() -> None:
+    with get_db_connection() as conn:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS tasks (
+                id TEXT PRIMARY KEY,
+                text TEXT NOT NULL,
+                type TEXT NOT NULL,
+                status TEXT NOT NULL,
+                parent_id TEXT NULL,
+                created_at TEXT NOT NULL,
+                output TEXT NULL,
+                ran_at TEXT NULL
+            )
+            """
+        )
+        conn.commit()
+
+
+def send_telegram(text: str) -> None:
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        print("TELEGRAM disabled: missing TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID")
+        return
+
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    payload = {"chat_id": TELEGRAM_CHAT_ID, "text": text}
+    req = urllib.request.Request(
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            status = resp.getcode()
+            body = resp.read().decode("utf-8", errors="replace")
+            if status != 200:
+                print(f"TELEGRAM send failed: status={status} body={body}")
+    except Exception as e:
+        print(f"TELEGRAM exception: {repr(e)}")
+        return
 
 
 def build_summary_prompt(text: str, action_items_count: int, questions_count: int) -> str:
     return (
         "You must output ONLY valid JSON. No prose, no markdown, no code fences.\n"
+        "Output language must be English only.\n"
+        "If user input is not English, first translate the content into English before summarizing.\n"
         "Output exactly one JSON object with keys:\n"
         "- summary: string\n"
         f"- action_items: array of exactly {action_items_count} strings\n"
@@ -105,6 +220,8 @@ def call_ollama_structured(prompt: str) -> dict:
                 current_prompt = (
                     "REPAIR: Previous output was invalid.\n"
                     "Output ONLY valid JSON. No prose, no markdown, no code fences.\n"
+                    "Output language must be English only.\n"
+                    "If user input is not English, first translate the content into English before summarizing.\n"
                     "Output exactly one JSON object with keys:\n"
                     "- summary: string\n"
                     "- action_items: array of exactly 3 strings\n"
@@ -114,14 +231,6 @@ def call_ollama_structured(prompt: str) -> dict:
                 continue
             return fallback
     return fallback
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 
 @app.get("/health")
@@ -145,44 +254,125 @@ def create_task(payload: TaskCreateRequest) -> Task:
     task = Task(
         id=str(uuid4()),
         text=payload.text,
+        type=payload.type or "internal_generate",
         status="pending_approval",
         created_at=datetime.now(timezone.utc).isoformat(),
     )
-    tasks.append(task)
+    with get_db_connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO tasks (id, text, type, status, parent_id, created_at, output, ran_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            task_to_db_values(task),
+        )
+        conn.commit()
     return task
 
 
 @app.get("/tasks")
 def list_tasks() -> list[Task]:
-    return list(reversed(tasks))
+    with get_db_connection() as conn:
+        rows = conn.execute("SELECT * FROM tasks ORDER BY created_at DESC").fetchall()
+    return [row_to_task(row) for row in rows]
 
 
 @app.post("/tasks/{task_id}/approve")
 def approve_task(task_id: str) -> Task:
-    for i, task in enumerate(tasks):
-        if task.id == task_id:
-            updated = task.model_copy(update={"status": "approved"})
-            tasks[i] = updated
-            return updated
-    raise HTTPException(status_code=404, detail="Task not found")
+    with get_db_connection() as conn:
+        cur = conn.execute("UPDATE tasks SET status = ? WHERE id = ?", ("approved", task_id))
+        if cur.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Task not found")
+        conn.commit()
+        task = get_task_by_id(conn, task_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return task
+
+
+@app.post("/tasks/{task_id}/status")
+def update_task_status(task_id: str, payload: TaskStatusUpdateRequest) -> Task:
+    with get_db_connection() as conn:
+        task = get_task_by_id(conn, task_id)
+        if task is None:
+            raise HTTPException(status_code=404, detail="Task not found")
+
+        conn.execute("UPDATE tasks SET status = ? WHERE id = ?", (payload.status, task_id))
+        updated = get_task_by_id(conn, task_id)
+        if updated is None:
+            raise HTTPException(status_code=404, detail="Task not found")
+
+        if updated.parent_id:
+            child_rows = conn.execute(
+                "SELECT status FROM tasks WHERE parent_id = ?",
+                (updated.parent_id,),
+            ).fetchall()
+            if child_rows and all(row["status"] == "done" for row in child_rows):
+                conn.execute("UPDATE tasks SET status = ? WHERE id = ?", ("done", updated.parent_id))
+
+        conn.commit()
+
+    send_telegram(
+        f"Task status updated: {task.text}\n"
+        f"Status: {payload.status}\n"
+        "Board: https://meeting.aximo.works/kanban"
+    )
+    return updated
 
 
 @app.post("/tasks/{task_id}/run")
 def run_task(task_id: str) -> Task:
-    for i, task in enumerate(tasks):
-        if task.id == task_id:
-            if task.status != "approved":
-                raise HTTPException(status_code=409, detail="Task must be approved before run")
-            result = call_ollama_structured(
-                build_summary_prompt(task.text, action_items_count=3, questions_count=2)
-            )
-            updated = task.model_copy(
-                update={
-                    "status": "done",
-                    "output": result,
-                    "ran_at": datetime.now(timezone.utc).isoformat(),
-                }
-            )
-            tasks[i] = updated
-            return updated
-    raise HTTPException(status_code=404, detail="Task not found")
+    with get_db_connection() as conn:
+        task = get_task_by_id(conn, task_id)
+        if task is None:
+            raise HTTPException(status_code=404, detail="Task not found")
+
+        if task.type == "external_execute" and task.status != "approved":
+            raise HTTPException(status_code=409, detail="Task must be approved before run")
+
+        result = call_ollama_structured(
+            build_summary_prompt(task.text, action_items_count=3, questions_count=2)
+        )
+        ran_at = datetime.now(timezone.utc).isoformat()
+        next_status: Literal["pending_approval", "approved", "done"] = (
+            "approved" if task.type == "internal_generate" else "done"
+        )
+
+        conn.execute(
+            "UPDATE tasks SET status = ?, output = ?, ran_at = ? WHERE id = ?",
+            (next_status, json.dumps(result), ran_at, task_id),
+        )
+
+        if task.type == "internal_generate":
+            for item in result.get("action_items", []):
+                child = Task(
+                    id=str(uuid4()),
+                    text=str(item),
+                    type="internal_generate",
+                    status="pending_approval",
+                    parent_id=task.id,
+                    created_at=ran_at,
+                )
+                conn.execute(
+                    """
+                    INSERT INTO tasks (id, text, type, status, parent_id, created_at, output, ran_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    task_to_db_values(child),
+                )
+
+        conn.commit()
+        updated = get_task_by_id(conn, task_id)
+
+    if updated is None:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    if task.type == "internal_generate":
+        send_telegram(
+            "Meeting execution plan generated.\n"
+            f"Summary: {result.get('summary', '')}\n"
+            "Tasks created: 3\n"
+            "Board: https://meeting.aximo.works/kanban"
+        )
+
+    return updated

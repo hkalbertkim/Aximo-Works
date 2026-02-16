@@ -1,0 +1,492 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+
+type TaskStatus = "pending_approval" | "approved" | "done";
+
+type Task = {
+  id: string;
+  text: string;
+  status: TaskStatus;
+  parent_id: string | null;
+  created_at: string;
+};
+
+const ARCHIVE_STORAGE_KEY = "aximo_archived_task_ids";
+
+const columns: Array<{ key: TaskStatus; title: string; barClass: string }> = [
+  { key: "pending_approval", title: "Open", barClass: "bg-amber-400" },
+  { key: "approved", title: "In Progress", barClass: "bg-sky-500" },
+  { key: "done", title: "Done", barClass: "bg-emerald-500" },
+];
+
+const getApiBase = () => {
+  if (typeof window !== "undefined" && window.location.hostname.endsWith("aximo.works")) {
+    return "https://api.aximo.works";
+  }
+  return "http://localhost:8000";
+};
+
+const isTestTask = (text: string) => {
+  return text.includes("CORS test") || text.startsWith("(Fallback)") || text.includes("Fallback");
+};
+
+const formatCreatedAt = (value: string) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  return date.toLocaleString(undefined, {
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
+
+export default function KanbanPage() {
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [showTestTasks, setShowTestTasks] = useState(false);
+  const [groupByParent, setGroupByParent] = useState(true);
+  const [archivedIds, setArchivedIds] = useState<Set<string>>(new Set());
+  const [expandedParentIds, setExpandedParentIds] = useState<Set<string>>(new Set());
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [showArchivedPanel, setShowArchivedPanel] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const saved = window.localStorage.getItem(ARCHIVE_STORAGE_KEY);
+    if (!saved) {
+      return;
+    }
+    try {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed)) {
+        setArchivedIds(new Set(parsed.filter((item): item is string => typeof item === "string")));
+      }
+    } catch {
+      window.localStorage.removeItem(ARCHIVE_STORAGE_KEY);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    window.localStorage.setItem(ARCHIVE_STORAGE_KEY, JSON.stringify(Array.from(archivedIds)));
+  }, [archivedIds]);
+
+  const fetchTasks = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch(`${getApiBase()}/tasks`);
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+      const data: Task[] = await res.json();
+      setTasks(data);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Unknown error";
+      setError(`Failed to load tasks: ${message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void fetchTasks();
+  }, []);
+
+  const visibleTasks = useMemo(() => {
+    return tasks.filter((task) => {
+      if (archivedIds.has(task.id)) {
+        return false;
+      }
+      if (!showTestTasks && isTestTask(task.text)) {
+        return false;
+      }
+      return true;
+    });
+  }, [tasks, archivedIds, showTestTasks]);
+
+  const tasksByStatus = useMemo(() => {
+    return {
+      pending_approval: visibleTasks.filter((t) => t.status === "pending_approval"),
+      approved: visibleTasks.filter((t) => t.status === "approved"),
+      done: visibleTasks.filter((t) => t.status === "done"),
+    };
+  }, [visibleTasks]);
+
+  const archivedTasks = useMemo(() => {
+    return tasks.filter((task) => archivedIds.has(task.id));
+  }, [tasks, archivedIds]);
+
+  useEffect(() => {
+    const parentIds = new Set(visibleTasks.filter((task) => task.parent_id == null).map((task) => task.id));
+    setExpandedParentIds(parentIds);
+  }, [visibleTasks]);
+
+  const updateStatus = async (taskId: string, status: TaskStatus) => {
+    try {
+      const res = await fetch(`${getApiBase()}/tasks/${taskId}/status`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+      await fetchTasks();
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Unknown error";
+      setError(`Failed to update status: ${message}`);
+    }
+  };
+
+  const archiveTask = (taskId: string) => {
+    setArchivedIds((prev) => {
+      const next = new Set(prev);
+      next.add(taskId);
+      return next;
+    });
+    setSelectedTask((prev) => (prev?.id === taskId ? null : prev));
+  };
+
+  const unarchiveTask = (taskId: string) => {
+    setArchivedIds((prev) => {
+      const next = new Set(prev);
+      next.delete(taskId);
+      return next;
+    });
+  };
+
+  const toggleParentExpanded = (taskId: string) => {
+    setExpandedParentIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(taskId)) {
+        next.delete(taskId);
+      } else {
+        next.add(taskId);
+      }
+      return next;
+    });
+  };
+
+  const renderTaskCard = (
+    task: Task,
+    barClass: string,
+    columnKey: TaskStatus,
+    isParentExpanded: boolean,
+    canToggleParent: boolean,
+    depth = 0,
+    grouped = false
+  ) => {
+    const isChild = task.parent_id != null;
+
+    return (
+      <div key={task.id} className={grouped ? "space-y-2" : ""}>
+        <article
+          role="button"
+          tabIndex={0}
+          onClick={() => setSelectedTask(task)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              setSelectedTask(task);
+            }
+          }}
+          className={`group relative cursor-pointer overflow-hidden rounded-xl border bg-white/95 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
+            isChild ? "border-slate-200" : "border-slate-300"
+          }`}
+          style={{ marginLeft: grouped ? depth * 16 : 0 }}
+        >
+          <div className={`absolute inset-y-0 left-0 w-1.5 ${barClass}`} />
+          <div className="space-y-3 p-4 pl-5">
+            <div className="flex items-start justify-between gap-2">
+              <p className={`line-clamp-3 text-sm ${isChild ? "font-medium text-slate-700" : "font-semibold text-slate-900"}`}>
+                {task.text}
+              </p>
+              <div className="flex shrink-0 items-center gap-2">
+                <span
+                  className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                    isChild ? "bg-indigo-100 text-indigo-700" : "bg-slate-200 text-slate-700"
+                  }`}
+                >
+                  {isChild ? "Child" : "Parent"}
+                </span>
+                {grouped && canToggleParent ? (
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      toggleParentExpanded(task.id);
+                    }}
+                    className="rounded-md border border-slate-300 bg-white px-2 py-0.5 text-[10px] font-medium text-slate-600 transition hover:bg-slate-100"
+                  >
+                    {isParentExpanded ? "Collapse" : "Expand"}
+                  </button>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+              <span className="rounded bg-slate-100 px-2 py-0.5 font-mono">{task.id.slice(0, 8)}</span>
+              <span>{formatCreatedAt(task.created_at)}</span>
+            </div>
+
+            <div className="flex flex-wrap gap-2 pt-1">
+              {columnKey !== "done" ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      void updateStatus(task.id, "approved");
+                    }}
+                    className="rounded-md bg-sky-600 px-2.5 py-1 text-xs font-medium text-white transition hover:bg-sky-700"
+                  >
+                    Mark In Progress
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      void updateStatus(task.id, "done");
+                    }}
+                    className="rounded-md bg-emerald-600 px-2.5 py-1 text-xs font-medium text-white transition hover:bg-emerald-700"
+                  >
+                    Mark Done
+                  </button>
+                </>
+              ) : null}
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  archiveTask(task.id);
+                }}
+                className="rounded-md bg-slate-700 px-2.5 py-1 text-xs font-medium text-white transition hover:bg-slate-800"
+              >
+                Archive
+              </button>
+            </div>
+          </div>
+        </article>
+      </div>
+    );
+  };
+
+  const renderTaskTree = (
+    task: Task,
+    inColumn: Task[],
+    barClass: string,
+    columnKey: TaskStatus,
+    depth = 0
+  ) => {
+    const children = inColumn.filter((candidate) => candidate.parent_id === task.id);
+    const canToggleParent = task.parent_id == null;
+    const isParentExpanded = canToggleParent ? expandedParentIds.has(task.id) : true;
+    return (
+      <div key={task.id} className="space-y-2">
+        {renderTaskCard(task, barClass, columnKey, isParentExpanded, canToggleParent, depth, true)}
+        {isParentExpanded ? children.map((child) => renderTaskTree(child, inColumn, barClass, columnKey, depth + 1)) : null}
+      </div>
+    );
+  };
+
+  return (
+    <main className="min-h-screen bg-slate-100 p-4 md:p-8">
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-5">
+        <header className="rounded-2xl bg-slate-900 px-5 py-4 text-slate-100 shadow-panel">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h1 className="text-xl font-semibold tracking-tight">Kanban Board</h1>
+              <p className="text-sm text-slate-300">Operational task flow with parent and child tracking</p>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={() => void fetchTasks()}
+                className="rounded-md bg-slate-100 px-3 py-1.5 text-sm font-medium text-slate-900 transition hover:bg-white"
+              >
+                Refresh
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowArchivedPanel(true)}
+                className="rounded-md bg-slate-100 px-3 py-1.5 text-sm font-medium text-slate-900 transition hover:bg-white"
+              >
+                Archived
+              </button>
+
+              <label className="inline-flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={showTestTasks}
+                  onChange={(event) => setShowTestTasks(event.target.checked)}
+                  className="h-4 w-4 rounded border-slate-300 text-sky-500 focus:ring-sky-500"
+                />
+                Show test tasks
+              </label>
+
+              <label className="inline-flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={groupByParent}
+                  onChange={(event) => setGroupByParent(event.target.checked)}
+                  className="h-4 w-4 rounded border-slate-300 text-sky-500 focus:ring-sky-500"
+                />
+                Group by parent
+              </label>
+            </div>
+          </div>
+        </header>
+
+        {loading ? <p className="text-sm text-slate-600">Loading...</p> : null}
+        {error ? <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p> : null}
+
+        <div className="grid gap-4 md:grid-cols-3">
+          {columns.map((column) => {
+            const inColumn = tasksByStatus[column.key];
+            const parents = inColumn.filter((task) => task.parent_id == null);
+            const orphanChildren = inColumn.filter(
+              (task) => task.parent_id != null && !inColumn.some((candidate) => candidate.id === task.parent_id)
+            );
+
+            return (
+              <section key={column.key} className="rounded-2xl border border-slate-200 bg-slate-50 p-3 shadow-sm">
+                <div className="mb-3 flex items-center justify-between">
+                  <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-700">{column.title}</h2>
+                  <span className="rounded-full bg-white px-2 py-0.5 text-xs font-medium text-slate-500">{inColumn.length}</span>
+                </div>
+
+                <div className="space-y-2">
+                  {groupByParent
+                    ? (
+                        <>
+                          {parents.map((task) => renderTaskTree(task, inColumn, column.barClass, column.key))}
+                          {orphanChildren.map((task) => renderTaskTree(task, inColumn, column.barClass, column.key, 1))}
+                        </>
+                      )
+                    : inColumn.map((task) => renderTaskCard(task, column.barClass, column.key, true, false))}
+                  {!inColumn.length ? (
+                    <div className="rounded-lg border border-dashed border-slate-300 bg-white px-3 py-6 text-center text-xs text-slate-500">
+                      No tasks
+                    </div>
+                  ) : null}
+                </div>
+              </section>
+            );
+          })}
+        </div>
+      </div>
+
+      {selectedTask ? (
+        <div className="fixed inset-0 z-50 flex justify-end bg-slate-900/40" onClick={() => setSelectedTask(null)}>
+          <aside
+            className="h-full w-full max-w-md overflow-y-auto bg-white p-6 shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-slate-900">Task details</h3>
+              <button
+                type="button"
+                onClick={() => setSelectedTask(null)}
+                className="rounded-md border border-slate-300 px-2 py-1 text-sm text-slate-600 transition hover:bg-slate-100"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="space-y-4 text-sm text-slate-700">
+              <div>
+                <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Text</p>
+                <p className="rounded-lg bg-slate-100 p-3 leading-relaxed">{selectedTask.text}</p>
+              </div>
+              <div>
+                <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">ID</p>
+                <p className="font-mono text-xs">{selectedTask.id}</p>
+              </div>
+              <div>
+                <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Status</p>
+                <p>{selectedTask.status}</p>
+              </div>
+              <div>
+                <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Parent ID</p>
+                <p className="font-mono text-xs">{selectedTask.parent_id ?? "None"}</p>
+              </div>
+              <div>
+                <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Created At</p>
+                <p>{selectedTask.created_at}</p>
+              </div>
+            </div>
+          </aside>
+        </div>
+      ) : null}
+
+      {showArchivedPanel ? (
+        <div className="fixed inset-0 z-50 flex justify-end bg-slate-900/40" onClick={() => setShowArchivedPanel(false)}>
+          <aside
+            className="h-full w-full max-w-md overflow-y-auto bg-white p-6 shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-slate-900">Archived tasks</h3>
+              <button
+                type="button"
+                onClick={() => setShowArchivedPanel(false)}
+                className="rounded-md border border-slate-300 px-2 py-1 text-sm text-slate-600 transition hover:bg-slate-100"
+              >
+                Close
+              </button>
+            </div>
+
+            {archivedTasks.length ? (
+              <div className="space-y-2">
+                {archivedTasks.map((task) => (
+                  <div key={task.id} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 space-y-1">
+                        <p className="truncate text-sm font-medium text-slate-900">{task.text}</p>
+                        <div className="flex items-center gap-2 text-xs text-slate-500">
+                          <span className="rounded bg-white px-2 py-0.5 font-mono">{task.id.slice(0, 8)}</span>
+                          <span
+                            className={`rounded-full px-2 py-0.5 font-semibold uppercase tracking-wide ${
+                              task.status === "pending_approval"
+                                ? "bg-amber-100 text-amber-700"
+                                : task.status === "approved"
+                                  ? "bg-sky-100 text-sky-700"
+                                  : "bg-emerald-100 text-emerald-700"
+                            }`}
+                          >
+                            {task.status}
+                          </span>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => unarchiveTask(task.id)}
+                        className="shrink-0 rounded-md bg-slate-700 px-2.5 py-1 text-xs font-medium text-white transition hover:bg-slate-800"
+                      >
+                        Unarchive
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-3 py-6 text-center text-sm text-slate-500">
+                No archived tasks
+              </p>
+            )}
+          </aside>
+        </div>
+      ) : null}
+    </main>
+  );
+}

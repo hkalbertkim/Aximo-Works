@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.aximo.frontend</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/albertkim/.nvm/versions/node/v22.20.0/bin/node</string>
+    <string>/Users/albertkim/02_PROJECTS/03_aximo/frontend/aximo-web/node_modules/next/dist/bin/next</string>
+    <string>start</string>
+    <string>-p</string>
+    <string>3000</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>/Users/albertkim/02_PROJECTS/03_aximo/frontend/aximo-web</string>
+
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+
+  <key>StandardOutPath</key>
+  <string>/Users/albertkim/02_PROJECTS/03_aximo/logs/frontend.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/albertkim/02_PROJECTS/03_aximo/logs/frontend.err.log</string>
+</dict>
+</plist>

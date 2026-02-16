@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.aximo.backend</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/albertkim/miniconda3/bin/python</string>
+    <string>-m</string>
+    <string>uvicorn</string>
+    <string>main:app</string>
+    <string>--host</string>
+    <string>127.0.0.1</string>
+    <string>--port</string>
+    <string>8000</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>/Users/albertkim/02_PROJECTS/03_aximo/backend</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>TELEGRAM_BOT_TOKEN</key>
+    <string>REDACTED</string>
+    <key>TELEGRAM_CHAT_ID</key>
+    <string>986350991</string>
+  </dict>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>/Users/albertkim/02_PROJECTS/03_aximo/logs/backend.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/albertkim/02_PROJECTS/03_aximo/logs/backend.err.log</string>
+</dict>
+</plist>

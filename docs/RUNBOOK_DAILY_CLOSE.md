@@ -1,38 +1,38 @@
 # RUNBOOK: Daily Close ("오늘 정리하자")
 
-## 트리거 문구
+## Trigger Phrase
 - `오늘 정리하자`
 
-## 사전 조건 (Preconditions)
-- 현재 작업 루트가 아래 경로여야 함:
+## Preconditions
+- Repository root must be:
   - `~/02_PROJECTS/03_aximo`
-- 이메일 발송용 환경변수가 설정되어 있어야 함:
+- Required email environment variables must exist:
   - `GMAIL_FROM`
   - `GMAIL_APP_PASSWORD`
 
-## Codex 실행 프롬프트 (복붙용)
-아래 블록을 Codex에 그대로 입력한다.
+## Codex Prompt Template (Copy/Paste)
+Use the prompt below in Codex exactly as written.
 
 ```text
 You are in ~/02_PROJECTS/03_aximo.
 
-Daily Close routine for today (use system date in local timezone).
+Daily close routine for today (use local timezone date).
 Execute in this exact order:
 
 1) Generate today's human-readable report markdown:
    - Create docs/reports/AXIMO_DAILY_<YYYY-MM-DD>.md
-   - Include these sections in Korean (concise):
+   - Include these sections in concise English:
      - What we built today (bullet list)
      - Proof/evidence summary (curl/test/proof snippets summarized)
-     - Files changed / touched
+     - Files changed/touched
      - Known issues/warnings
      - Next actions for tomorrow
 
 2) Post Linear END comment to HKA-38 using existing script:
-   - Command style:
+   - Command pattern:
      python3 scripts/post_daily_brief_to_linear.py --issue HKA-38 --text '<TEXT>'
    - Rule:
-     - If an END comment for today already exists, post an ADDENDUM instead.
+     - If an END comment already exists for today, post an ADDENDUM.
      - Otherwise post END for today.
 
 3) Send the report email:
@@ -40,7 +40,7 @@ Execute in this exact order:
      python3 scripts/send_daily_report_email.py --report docs/reports/AXIMO_DAILY_<YYYY-MM-DD>.md
 
 4) Git commit + push (optional, guarded):
-   - Only if there are tracked changes.
+   - Execute only if there are tracked changes.
    - Commit message format:
      Daily close YYYY-MM-DD
    - Push target:
@@ -55,10 +55,10 @@ Output contract (strict):
 - Do not print secrets.
 ```
 
-## 출력 계약 (요약)
-- Codex는 반드시 아래만 반환해야 함:
-  - 실행한 정확한 명령어
-  - Linear 코멘트 성공 라인
-  - 이메일 발송 성공 라인
-  - Git 결과 핵심 라인(또는 변경 없음)
-- 비밀값/토큰/패스워드는 출력 금지
+## Output Contract (Summary)
+- Codex must return only:
+  - exact commands executed
+  - Linear post success line
+  - email send success line
+  - Git key result lines (or no tracked changes)
+- Never output secrets, tokens, or passwords.
