@@ -10,3 +10,6 @@ logs/
 *.db-journal
 *.sqlite-journal
 backend/aximo.db
+ops/backups/
+ops/state/
+ops/today_snapshot.md
