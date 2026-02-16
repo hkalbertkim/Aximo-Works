@@ -235,7 +235,33 @@ def call_ollama_structured(prompt: str) -> dict:
 
 @app.get("/health")
 def health() -> dict:
-    return {"ok": True}
+    return {
+        "ok": True,
+        "ts": datetime.now(timezone.utc).isoformat(),
+        "service": "aximo-backend",
+    }
+
+
+@app.get("/telegram/health")
+def telegram_health() -> dict:
+    if not TELEGRAM_BOT_TOKEN:
+        return {"ok": False, "error_code": 0, "body": "missing TELEGRAM_BOT_TOKEN"}
+
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getMe"
+    req = urllib.request.Request(url, method="GET")
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            raw_body = resp.read().decode("utf-8", errors="replace")
+            payload = json.loads(raw_body)
+            username = payload.get("result", {}).get("username", "")
+            if resp.getcode() == 200 and payload.get("ok") is True:
+                return {"ok": True, "username": username}
+            return {"ok": False, "error_code": int(resp.getcode() or 0), "body": raw_body[:200]}
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8", errors="replace")
+        return {"ok": False, "error_code": int(e.code), "body": body[:200]}
+    except Exception as e:
+        return {"ok": False, "error_code": 0, "body": repr(e)[:200]}
 
 
 @app.post("/intent")

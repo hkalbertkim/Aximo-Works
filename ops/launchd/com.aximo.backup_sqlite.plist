@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.aximo.backup_sqlite</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/Users/albertkim/02_PROJECTS/03_aximo/ops/backup_sqlite.sh</string>
+  </array>
+
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key>
+    <integer>2</integer>
+    <key>Minute</key>
+    <integer>10</integer>
+  </dict>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>StandardOutPath</key>
+  <string>/Users/albertkim/02_PROJECTS/03_aximo/logs/backup_sqlite.launchd.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/albertkim/02_PROJECTS/03_aximo/logs/backup_sqlite.launchd.log</string>
+</dict>
+</plist>
