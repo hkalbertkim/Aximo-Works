@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { apiFetch } from "@/lib/api";
 
 type Task = {
   id: string;
@@ -31,7 +32,7 @@ export default function Home() {
     setTask(null);
 
     try {
-      const res = await fetch("http://localhost:8000/tasks", {
+      const res = await apiFetch("/tasks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text }),
@@ -60,7 +61,7 @@ export default function Home() {
     setError("");
 
     try {
-      const res = await fetch(`http://localhost:8000/tasks/${task.id}/approve`, {
+      const res = await apiFetch(`/tasks/${task.id}/approve`, {
         method: "POST",
       });
 
@@ -87,7 +88,7 @@ export default function Home() {
     setError("");
 
     try {
-      const res = await fetch(`http://localhost:8000/tasks/${task.id}/run`, {
+      const res = await apiFetch(`/tasks/${task.id}/run`, {
         method: "POST",
       });
 

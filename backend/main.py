@@ -7,9 +7,11 @@ import urllib.error
 import urllib.request
 from uuid import uuid4
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+from starlette.middleware.base import BaseHTTPMiddleware
 
 
 class IntentRequest(BaseModel):
@@ -43,6 +45,42 @@ class SummaryResult(BaseModel):
 
 
 app = FastAPI()
+AXIMO_API_TOKEN = os.getenv("AXIMO_API_TOKEN", "").strip()
+AXIMO_IP_ALLOWLIST = [ip.strip() for ip in os.getenv("AXIMO_IP_ALLOWLIST", "").split(",") if ip.strip()]
+
+
+class AximoAPIGuard(BaseHTTPMiddleware):
+    PUBLIC_PATHS = {"/health", "/telegram/health", "/docs", "/redoc", "/openapi.json"}
+
+    async def dispatch(self, request: Request, call_next):
+        path = request.url.path
+        if path in self.PUBLIC_PATHS or path.startswith("/docs") or path.startswith("/redoc"):
+            return await call_next(request)
+
+        if AXIMO_IP_ALLOWLIST:
+            # Prefer reverse-proxy headers
+            xff = request.headers.get("x-forwarded-for")
+            if xff:
+                client_ip = xff.split(",")[0].strip()
+            else:
+                xri = request.headers.get("x-real-ip")
+                client_ip = (xri or "").strip() if xri else (request.client.host if request.client else "")
+
+            loopback_ips = {"127.0.0.1", "::1", "::ffff:127.0.0.1"}
+            if client_ip not in loopback_ips and client_ip not in AXIMO_IP_ALLOWLIST:
+                return JSONResponse(status_code=403, content={"detail": "IP not allowed"})
+
+        if not AXIMO_API_TOKEN:
+            return JSONResponse(status_code=500, content={"detail": "AXIMO_API_TOKEN is not configured"})
+
+        incoming = request.headers.get("x-aximo-token", "")
+        if incoming != AXIMO_API_TOKEN:
+            return JSONResponse(status_code=401, content={"detail": "Unauthorized"})
+
+        return await call_next(request)
+
+
+app.add_middleware(AximoAPIGuard)
 
 app.add_middleware(
     CORSMiddleware,

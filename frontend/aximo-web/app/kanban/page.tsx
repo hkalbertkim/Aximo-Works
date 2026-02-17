@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { apiFetch } from "@/lib/api";
 
 type TaskStatus = "pending_approval" | "approved" | "done";
 
@@ -19,13 +20,6 @@ const columns: Array<{ key: TaskStatus; title: string; barClass: string }> = [
   { key: "approved", title: "In Progress", barClass: "bg-sky-500" },
   { key: "done", title: "Done", barClass: "bg-emerald-500" },
 ];
-
-const getApiBase = () => {
-  if (typeof window !== "undefined" && window.location.hostname.endsWith("aximo.works")) {
-    return "https://api.aximo.works";
-  }
-  return "http://localhost:8000";
-};
 
 const isTestTask = (text: string) => {
   return text.includes("CORS test") || text.startsWith("(Fallback)") || text.includes("Fallback");
@@ -84,7 +78,7 @@ export default function KanbanPage() {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch(`${getApiBase()}/tasks`);
+      const res = await apiFetch("/tasks");
       if (!res.ok) {
         throw new Error(`HTTP ${res.status}`);
       }
@@ -133,7 +127,7 @@ export default function KanbanPage() {
 
   const updateStatus = async (taskId: string, status: TaskStatus) => {
     try {
-      const res = await fetch(`${getApiBase()}/tasks/${taskId}/status`, {
+      const res = await apiFetch(`/tasks/${taskId}/status`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status }),

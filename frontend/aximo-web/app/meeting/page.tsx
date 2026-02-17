@@ -1,12 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { apiFetch } from "@/lib/api";
 
 type TaskCreateResponse = {
   id: string;
 };
-
-const API_BASE = "http://localhost:8000";
 
 export default function MeetingPage() {
   const [notes, setNotes] = useState("");
@@ -18,7 +17,7 @@ export default function MeetingPage() {
     setStatus("Generating...");
 
     try {
-      const createRes = await fetch(`${API_BASE}/tasks`, {
+      const createRes = await apiFetch("/tasks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: notes, type: "internal_generate" }),
@@ -31,7 +30,7 @@ export default function MeetingPage() {
       const created: TaskCreateResponse = await createRes.json();
       const parentId = created.id;
 
-      const runRes = await fetch(`${API_BASE}/tasks/${parentId}/run`, {
+      const runRes = await apiFetch(`/tasks/${parentId}/run`, {
         method: "POST",
       });
 
