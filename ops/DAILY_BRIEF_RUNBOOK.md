@@ -2,6 +2,7 @@
 
 ## Purpose
 Generate a daily operational summary from SQLite tasks and send it to Telegram.
+Also posts to Linear HKA-38 when LINEAR_* env vars are present.
 
 ## Manual run
 ```bash

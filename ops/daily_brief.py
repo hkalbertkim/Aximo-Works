@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 import os
 from pathlib import Path
 import sqlite3
+import subprocess
 import sys
 import json
 import urllib.request
@@ -167,6 +168,24 @@ def send_brief_with_existing_sender(message: str) -> None:
     send_telegram(message)
 
 
+def post_brief_to_linear(message: str) -> None:
+    cmd = [
+        sys.executable,
+        str(ROOT / 'scripts' / 'post_daily_brief_to_linear.py'),
+        '--issue',
+        'HKA-38',
+        '--text',
+        message,
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode == 0:
+        log_line('SUCCESS linear brief posted issue=HKA-38')
+        return
+
+    err = (result.stderr or result.stdout or '').strip().replace('\n', ' ')
+    log_line(f'FAIL linear post issue=HKA-38 rc={result.returncode} stderr={err[:200]}')
+
+
 def main() -> int:
     if already_sent_today():
         log_line('SKIP already sent today')
@@ -179,6 +198,7 @@ def main() -> int:
 
     brief = build_brief()
     send_brief_with_existing_sender(brief)
+    post_brief_to_linear(brief)
     mark_sent_today()
 
     log_line('SUCCESS daily brief sent')
