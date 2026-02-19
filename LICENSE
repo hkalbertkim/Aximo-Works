@@ -1,0 +1,64 @@
+Business Source License 1.1
+
+Parameters
+
+Licensor:             AXIMO (Albert Kim)
+Licensed Work:        AXIMO (this repository)
+Additional Use Grant: Permitted: internal use, evaluation, non-commercial use.
+                      Prohibited: offering the Licensed Work as a hosted service/SaaS
+                      to third parties or any competing commercial offering prior to
+                      the Change Date. You may not provide the Licensed Work as a
+                      service to third parties.
+Change Date:          2029-01-01
+Change License:       Apache License, Version 2.0
+
+Terms
+
+Business Source License 1.1
+
+License text copyright (c) 2017 MariaDB Corporation Ab, All Rights Reserved.
+"Business Source License" is a trademark of MariaDB Corporation Ab.
+
+As of the Change Date specified above, in accordance with the Business Source
+License, use of the Licensed Work will be governed by version 2.0 of the Apache
+License.
+
+Licensed Work Definition
+
+The Licensed Work is the complete set of files and source code made available in
+this repository under the name AXIMO.
+
+Grant of Rights
+
+Subject to the terms of this License, Licensor grants you a non-exclusive,
+worldwide, non-transferable, non-sublicensable license to copy, modify, create
+derivative works, and make non-production use of the Licensed Work, and to make
+production use only as permitted by the Additional Use Grant above.
+
+Limitations
+
+The grant of rights under this License does not include the right to provide the
+Licensed Work to third parties as a hosted or managed service, or to use it in a
+competing commercial offering, prior to the Change Date.
+
+The right to use the Licensed Work for production purposes is expressly limited
+by the Additional Use Grant above.
+
+Notices
+
+You must ensure that anyone who gets a copy of any part of the Licensed Work
+from you also gets a copy of this License.
+
+You may not remove or alter any license notices from the Licensed Work.
+
+Disclaimer
+
+THE LICENSED WORK IS PROVIDED "AS IS". LICENSOR DISCLAIMS ALL WARRANTIES,
+EXPRESS OR IMPLIED, INCLUDING MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE,
+NON-INFRINGEMENT, AND TITLE.
+
+Limitation of Liability
+
+IN NO EVENT WILL LICENSOR BE LIABLE FOR ANY DAMAGES (INCLUDING, WITHOUT
+LIMITATION, LOST PROFITS OR LOST DATA) ARISING FROM OR RELATED TO THIS LICENSE
+OR THE LICENSED WORK, TO THE MAXIMUM EXTENT PERMITTED BY LAW.

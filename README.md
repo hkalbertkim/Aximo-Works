@@ -63,3 +63,9 @@ It replaces daily admin/ops work so founders can run a company alone.
 - Required env vars:
   - `GMAIL_FROM`
   - `GMAIL_APP_PASSWORD`
+
+## License
+This project is source-available under the Business Source License 1.1 (BSL 1.1).
+You may use it for evaluation and internal purposes.
+You may not offer it as a hosted service/SaaS to third parties or otherwise compete with AXIMO prior to the Change Date.
+On the Change Date (2029-01-01) it will convert to Apache 2.0.
