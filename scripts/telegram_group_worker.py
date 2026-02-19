@@ -12,11 +12,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "backend"))
+REPO_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO_ROOT / "backend"))
 from telegram_notify import send_telegram  # noqa: E402
 
-OFFSET_PATH = Path("backend/data/telegram_offset.txt")
+OFFSET_PATH = REPO_ROOT / "backend" / "data" / "telegram_offset.txt"
 KANBAN_URL = "https://meeting.aximo.works/kanban"
 
 
