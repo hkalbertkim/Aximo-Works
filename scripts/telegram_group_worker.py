@@ -2,6 +2,7 @@
 import argparse
 import json
 import os
+import sys
 import time
 import urllib.error
 import urllib.parse
@@ -10,6 +11,10 @@ from collections import deque
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "backend"))
+from telegram_notify import send_telegram  # noqa: E402
 
 OFFSET_PATH = Path("backend/data/telegram_offset.txt")
 KANBAN_URL = "https://meeting.aximo.works/kanban"
@@ -53,23 +58,6 @@ def telegram_request(token: str, method: str, params: dict[str, Any]) -> dict[st
     return json.loads(body)
 
 
-def send_telegram(token: str, chat_id: str, text: str) -> None:
-    try:
-        result = telegram_request(
-            token,
-            "sendMessage",
-            {
-                "chat_id": chat_id,
-                "text": text,
-                "disable_web_page_preview": "true",
-            },
-        )
-        if not result.get("ok"):
-            log("telegram send failed")
-    except Exception:
-        log("telegram send exception")
-
-
 def backend_post_json(base: str, token: str, path: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
     url = f"{base.rstrip('/')}{path}"
     body = b""
@@ -109,8 +97,6 @@ def build_summary_input(buffer: deque[dict[str, str]]) -> str:
 
 
 def handle_aximo_command(
-    tg_token: str,
-    tg_chat_id: str,
     backend_base: str,
     aximo_api_token: str,
     buffer: deque[dict[str, str]],
@@ -126,7 +112,7 @@ def handle_aximo_command(
         task_id = str(created.get("id", ""))
         if task_id:
             backend_post_json(backend_base, aximo_api_token, f"/tasks/{task_id}/run", None)
-        send_telegram(tg_token, tg_chat_id, f"🧠 Aximo captured this thread → Board: {KANBAN_URL}")
+        send_telegram(f"🧠 Aximo captured this thread → Board: {KANBAN_URL}")
         log("aximo command processed")
     except Exception:
         log("aximo command processing failed")
@@ -188,7 +174,7 @@ def run_worker(duration_seconds: int) -> None:
                 log(f"buffer_size={len(buffer)}")
 
             if text.strip().lower() == "/aximo":
-                handle_aximo_command(tg_token, tg_chat_id, backend_base, aximo_api_token, buffer)
+                handle_aximo_command(backend_base, aximo_api_token, buffer)
 
     log("worker stop")
 
