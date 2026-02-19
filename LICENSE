@@ -2,13 +2,13 @@ Business Source License 1.1
 
 Parameters
 
-Licensor:             AXIMO (Albert Kim)
-Licensed Work:        AXIMO (this repository)
-Additional Use Grant: Permitted: internal use, evaluation, non-commercial use.
-                      Prohibited: offering the Licensed Work as a hosted service/SaaS
-                      to third parties or any competing commercial offering prior to
-                      the Change Date. You may not provide the Licensed Work as a
-                      service to third parties.
+Licensor:             Aximo Works
+Licensed Work:        AXIMO
+Additional Use Grant: You may make non-commercial use of the Licensed Work,
+                      including internal use and evaluation use. You may not
+                      provide the Licensed Work to third parties as a hosted
+                      or managed service (including SaaS) prior to the Change
+                      Date.
 Change Date:          2029-01-01
 Change License:       Apache License, Version 2.0
 
@@ -23,39 +23,49 @@ As of the Change Date specified above, in accordance with the Business Source
 License, use of the Licensed Work will be governed by version 2.0 of the Apache
 License.
 
-Licensed Work Definition
+Definitions
 
-The Licensed Work is the complete set of files and source code made available in
-this repository under the name AXIMO.
+"License" means this Business Source License.
+
+"Licensor" means the person or entity that offers the Licensed Work under the
+terms of this License.
+
+"Licensed Work" means the work of authorship made available under this License,
+as specified in the Parameters.
+
+"Change Date" means the date specified in the Parameters on which this License
+will convert to the Change License.
+
+"Change License" means the license specified in the Parameters that applies to
+the Licensed Work on and after the Change Date.
 
 Grant of Rights
 
 Subject to the terms of this License, Licensor grants you a non-exclusive,
-worldwide, non-transferable, non-sublicensable license to copy, modify, create
-derivative works, and make non-production use of the Licensed Work, and to make
-production use only as permitted by the Additional Use Grant above.
+worldwide, royalty-free, non-transferable, non-sublicensable license to copy,
+modify, create derivative works, and make use of the Licensed Work, as allowed
+by the Additional Use Grant and this License.
 
-Limitations
+Restrictions
 
-The grant of rights under this License does not include the right to provide the
-Licensed Work to third parties as a hosted or managed service, or to use it in a
-competing commercial offering, prior to the Change Date.
+Any use of the Licensed Work that is not expressly authorized by this License
+is prohibited.
 
-The right to use the Licensed Work for production purposes is expressly limited
-by the Additional Use Grant above.
+The right to provide the Licensed Work to third parties as a hosted or managed
+service (including SaaS) is prohibited prior to the Change Date.
 
-Notices
+Notice
 
-You must ensure that anyone who gets a copy of any part of the Licensed Work
-from you also gets a copy of this License.
+You must provide a copy of this License with every copy of the Licensed Work or
+derivative work you distribute.
 
-You may not remove or alter any license notices from the Licensed Work.
+You may not remove or alter license notices from the Licensed Work.
 
 Disclaimer
 
 THE LICENSED WORK IS PROVIDED "AS IS". LICENSOR DISCLAIMS ALL WARRANTIES,
-EXPRESS OR IMPLIED, INCLUDING MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE,
-NON-INFRINGEMENT, AND TITLE.
+EXPRESS OR IMPLIED, INCLUDING WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE, NON-INFRINGEMENT, AND TITLE.
 
 Limitation of Liability
 
