@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/Aximo_Horizontal_Logo_Color.png" alt="AXIMO by Aximo Works" width="260" />
+  <img src="assets/Aximo_Horizontal_Logo_Color.png" alt="AXIMO by Aximo Works" width="600" />
 </p>
 
 <p align="center">
