@@ -12,6 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from starlette.middleware.base import BaseHTTPMiddleware
+from telegram_notify import send_telegram as send_telegram_notify
 
 
 class IntentRequest(BaseModel):
@@ -335,7 +336,10 @@ def create_task(payload: TaskCreateRequest) -> Task:
             task_to_db_values(task),
         )
         conn.commit()
-    notify_telegram(f"🆕 Task Created\nTitle: {task.text}\nStatus: {task.status}")
+    task_title = getattr(task, "title", task.text)
+    send_telegram_notify(
+        f"🆕 Task Created\nTitle: {task_title}\nStatus: {task.status}\nBoard: https://meeting.aximo.works/kanban"
+    )
     return task
 
 
