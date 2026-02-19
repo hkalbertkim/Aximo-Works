@@ -17,13 +17,6 @@
   </array>
   <key>WorkingDirectory</key>
   <string>/Users/albertkim/02_PROJECTS/03_aximo/backend</string>
-  <key>EnvironmentVariables</key>
-  <dict>
-    <key>TELEGRAM_BOT_TOKEN</key>
-    <string>REDACTED</string>
-    <key>TELEGRAM_CHAT_ID</key>
-    <string>986350991</string>
-  </dict>
   <key>RunAtLoad</key>
   <true/>
   <key>KeepAlive</key>
