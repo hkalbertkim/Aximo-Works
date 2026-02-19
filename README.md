@@ -1,9 +1,13 @@
-# Aximo
+# AXIMO
 
 Fire All the Idiots. Keep the Work.
 
-Aximo is a 30-minute setup AI admin worker for SMB founders.
+AXIMO is a 30-minute setup AI admin worker for SMB founders.
 It replaces daily admin/ops work so founders can run a company alone.
+
+## Naming
+- Product: AXIMO
+- Company/Brand: Aximo Works
 
 ## v0.1 Scope (LOCKED)
 - Messenger: Slack (primary) + Telegram (daily brief only)
