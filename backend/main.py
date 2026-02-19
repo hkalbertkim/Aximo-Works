@@ -188,6 +188,10 @@ def send_telegram(text: str) -> None:
         return
 
 
+def notify_telegram(text: str) -> None:
+    send_telegram(text)
+
+
 def build_summary_prompt(text: str, action_items_count: int, questions_count: int) -> str:
     return (
         "You must output ONLY valid JSON. No prose, no markdown, no code fences.\n"
@@ -331,6 +335,7 @@ def create_task(payload: TaskCreateRequest) -> Task:
             task_to_db_values(task),
         )
         conn.commit()
+    notify_telegram(f"🆕 Task Created\nTitle: {task.text}\nStatus: {task.status}")
     return task
 
 
