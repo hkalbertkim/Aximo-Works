@@ -193,6 +193,14 @@ def notify_telegram(text: str) -> None:
     send_telegram(text)
 
 
+def short_id(task_id: str) -> str:
+    return task_id[:8]
+
+
+def task_title(task: Task) -> str:
+    return getattr(task, "title", task.text)
+
+
 def build_summary_prompt(text: str, action_items_count: int, questions_count: int) -> str:
     return (
         "You must output ONLY valid JSON. No prose, no markdown, no code fences.\n"
@@ -360,6 +368,7 @@ def approve_task(task_id: str) -> Task:
         task = get_task_by_id(conn, task_id)
     if task is None:
         raise HTTPException(status_code=404, detail="Task not found")
+    send_telegram_notify(f"✅ Approved: {task_title(task)} (id:{short_id(task.id)})")
     return task
 
 
@@ -369,6 +378,7 @@ def update_task_status(task_id: str, payload: TaskStatusUpdateRequest) -> Task:
         task = get_task_by_id(conn, task_id)
         if task is None:
             raise HTTPException(status_code=404, detail="Task not found")
+        previous_status = task.status
 
         conn.execute("UPDATE tasks SET status = ? WHERE id = ?", (payload.status, task_id))
         updated = get_task_by_id(conn, task_id)
@@ -385,11 +395,10 @@ def update_task_status(task_id: str, payload: TaskStatusUpdateRequest) -> Task:
 
         conn.commit()
 
-    send_telegram(
-        f"Task status updated: {task.text}\n"
-        f"Status: {payload.status}\n"
-        "Board: https://meeting.aximo.works/kanban"
-    )
+    if previous_status != payload.status:
+        send_telegram_notify(f"🔄 Status: {task_title(updated)} → {payload.status} (id:{short_id(updated.id)})")
+        if payload.status == "done":
+            send_telegram_notify(f"🎉 Done: {task_title(updated)} (id:{short_id(updated.id)})")
     return updated
 
 
@@ -440,12 +449,6 @@ def run_task(task_id: str) -> Task:
     if updated is None:
         raise HTTPException(status_code=404, detail="Task not found")
 
-    if task.type == "internal_generate":
-        send_telegram(
-            "Meeting execution plan generated.\n"
-            f"Summary: {result.get('summary', '')}\n"
-            "Tasks created: 3\n"
-            "Board: https://meeting.aximo.works/kanban"
-        )
+    send_telegram_notify(f"▶️ Running: {task_title(updated)} (id:{short_id(updated.id)})")
 
     return updated
