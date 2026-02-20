@@ -2,6 +2,7 @@
 import argparse
 import json
 import os
+import re
 import sys
 import time
 import urllib.error
@@ -11,6 +12,7 @@ from collections import deque
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "backend"))
@@ -96,6 +98,20 @@ def build_summary_input(buffer: deque[dict[str, str]]) -> str:
     return "Summarize this Telegram group thread into an execution plan:\n" + "\n".join(lines)
 
 
+def extract_due_date(buffer_last_20_text: str) -> str | None:
+    match = re.search(r"(?:due|by)\s+(\d{4}-\d{2}-\d{2})", buffer_last_20_text, re.IGNORECASE)
+    if match:
+        return match.group(1)
+
+    lowered = buffer_last_20_text.lower()
+    today_paris = datetime.now(ZoneInfo("Europe/Paris")).date()
+    if "tomorrow" in lowered:
+        return (today_paris.fromordinal(today_paris.toordinal() + 1)).isoformat()
+    if "today" in lowered:
+        return today_paris.isoformat()
+    return None
+
+
 def handle_aximo_command(
     backend_base: str,
     aximo_api_token: str,
@@ -103,11 +119,12 @@ def handle_aximo_command(
 ) -> None:
     try:
         text = build_summary_input(buffer)
+        due_date = extract_due_date("\n".join(m.get("text", "") for m in list(buffer)[-20:]))
         created = backend_post_json(
             backend_base,
             aximo_api_token,
             "/tasks",
-            {"text": text, "type": "internal_generate"},
+            {"text": text, "type": "internal_generate", "due_date": due_date},
         )
         task_id = str(created.get("id", ""))
         if task_id:

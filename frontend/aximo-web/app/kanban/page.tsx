@@ -11,6 +11,7 @@ type Task = {
   status: TaskStatus;
   parent_id: string | null;
   created_at: string;
+  due_date?: string | null;
 };
 
 const ARCHIVE_STORAGE_KEY = "aximo_archived_task_ids";
@@ -231,6 +232,7 @@ export default function KanbanPage() {
             <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
               <span className="rounded bg-slate-100 px-2 py-0.5 font-mono">{task.id.slice(0, 8)}</span>
               <span>{formatCreatedAt(task.created_at)}</span>
+              {task.due_date ? <span className="rounded bg-rose-100 px-2 py-0.5 text-rose-700">Due: {task.due_date}</span> : null}
             </div>
 
             <div className="flex flex-wrap gap-2 pt-1">
@@ -418,6 +420,12 @@ export default function KanbanPage() {
                 <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Created At</p>
                 <p>{selectedTask.created_at}</p>
               </div>
+              {selectedTask.due_date ? (
+                <div>
+                  <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Due Date</p>
+                  <p>{selectedTask.due_date}</p>
+                </div>
+              ) : null}
             </div>
           </aside>
         </div>

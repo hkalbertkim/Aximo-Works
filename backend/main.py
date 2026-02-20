@@ -22,6 +22,7 @@ class IntentRequest(BaseModel):
 class TaskCreateRequest(BaseModel):
     text: str
     type: Literal["internal_generate", "external_execute"] | None = None
+    due_date: str | None = None
 
 
 class TaskStatusUpdateRequest(BaseModel):
@@ -37,6 +38,7 @@ class Task(BaseModel):
     created_at: str
     output: dict | None = None
     ran_at: str | None = None
+    due_date: str | None = None
 
 
 class SummaryResult(BaseModel):
@@ -109,7 +111,7 @@ def get_db_connection() -> sqlite3.Connection:
     return conn
 
 
-def task_to_db_values(task: Task) -> tuple[str, str, str, str, str | None, str, str | None, str | None]:
+def task_to_db_values(task: Task) -> tuple[str, str, str, str, str | None, str, str | None, str | None, str | None]:
     return (
         task.id,
         task.text,
@@ -119,6 +121,7 @@ def task_to_db_values(task: Task) -> tuple[str, str, str, str, str | None, str, 
         task.created_at,
         json.dumps(task.output) if task.output is not None else None,
         task.ran_at,
+        task.due_date,
     )
 
 
@@ -135,6 +138,7 @@ def row_to_task(row: sqlite3.Row) -> Task:
         created_at=row["created_at"],
         output=output,
         ran_at=row["ran_at"],
+        due_date=row["due_date"],
     )
 
 
@@ -158,10 +162,14 @@ def init_db() -> None:
                 parent_id TEXT NULL,
                 created_at TEXT NOT NULL,
                 output TEXT NULL,
-                ran_at TEXT NULL
+                ran_at TEXT NULL,
+                due_date TEXT NULL
             )
             """
         )
+        columns = {row["name"] for row in conn.execute("PRAGMA table_info(tasks)").fetchall()}
+        if "due_date" not in columns:
+            conn.execute("ALTER TABLE tasks ADD COLUMN due_date TEXT NULL")
         conn.commit()
 
 
@@ -334,12 +342,13 @@ def create_task(payload: TaskCreateRequest) -> Task:
         type=payload.type or "internal_generate",
         status="pending_approval",
         created_at=datetime.now(timezone.utc).isoformat(),
+        due_date=payload.due_date,
     )
     with get_db_connection() as conn:
         conn.execute(
             """
-            INSERT INTO tasks (id, text, type, status, parent_id, created_at, output, ran_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO tasks (id, text, type, status, parent_id, created_at, output, ran_at, due_date)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             task_to_db_values(task),
         )
@@ -437,8 +446,8 @@ def run_task(task_id: str) -> Task:
                 )
                 conn.execute(
                     """
-                    INSERT INTO tasks (id, text, type, status, parent_id, created_at, output, ran_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO tasks (id, text, type, status, parent_id, created_at, output, ran_at, due_date)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     task_to_db_values(child),
                 )
