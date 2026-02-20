@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { apiFetch } from "@/lib/api";
 
 type TaskStatus = "pending_approval" | "approved" | "done";
 
@@ -75,13 +74,27 @@ export default function KanbanPage() {
     window.localStorage.setItem(ARCHIVE_STORAGE_KEY, JSON.stringify(Array.from(archivedIds)));
   }, [archivedIds]);
 
+  const readErrorSnippet = async (res: Response) => {
+    try {
+      const body = (await res.text()).trim();
+      return body.slice(0, 200);
+    } catch {
+      return "";
+    }
+  };
+
   const fetchTasks = async () => {
     setLoading(true);
     setError("");
     try {
-      const res = await apiFetch("/tasks");
+      const res = await fetch("/api/proxy/tasks", {
+        method: "GET",
+        credentials: "include",
+        cache: "no-store",
+      });
       if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
+        const snippet = await readErrorSnippet(res);
+        throw new Error(`HTTP ${res.status}${snippet ? `: ${snippet}` : ""}`);
       }
       const data: Task[] = await res.json();
       setTasks(data);
@@ -128,13 +141,16 @@ export default function KanbanPage() {
 
   const updateStatus = async (taskId: string, status: TaskStatus) => {
     try {
-      const res = await apiFetch(`/tasks/${taskId}/status`, {
+      const res = await fetch(`/api/proxy/tasks/${taskId}/status`, {
         method: "POST",
+        credentials: "include",
+        cache: "no-store",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status }),
       });
       if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
+        const snippet = await readErrorSnippet(res);
+        throw new Error(`HTTP ${res.status}${snippet ? `: ${snippet}` : ""}`);
       }
       await fetchTasks();
     } catch (e) {
