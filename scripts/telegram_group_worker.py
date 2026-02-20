@@ -90,8 +90,8 @@ def speaker_name(msg: dict[str, Any]) -> str:
     return str(frm.get("username") or frm.get("first_name") or "unknown")
 
 
-def build_summary_input(buffer: deque[dict[str, str]]) -> str:
-    recent = [m for m in list(buffer)[-20:] if m.get("text") and not m["text"].startswith("/")]
+def build_summary_input(messages: list[dict[str, str]]) -> str:
+    recent = [m for m in messages[-20:] if m.get("text") and not m["text"].startswith("/")]
     if not recent:
         return "Telegram thread summary requested, but no recent non-command messages were available."
     lines = [f"- {m['speaker']}: {m['text']}" for m in recent]
@@ -116,10 +116,14 @@ def handle_aximo_command(
     backend_base: str,
     aximo_api_token: str,
     buffer: deque[dict[str, str]],
+    same_batch_before: list[dict[str, str]] | None = None,
 ) -> None:
     try:
-        text = build_summary_input(buffer)
-        due_date = extract_due_date("\n".join(m.get("text", "") for m in list(buffer)[-20:]))
+        combined = list(buffer)
+        if same_batch_before:
+            combined.extend(m for m in same_batch_before if m not in combined)
+        text = build_summary_input(combined)
+        due_date = extract_due_date("\n".join(m.get("text", "") for m in combined[-20:]))
         created = backend_post_json(
             backend_base,
             aximo_api_token,
@@ -170,6 +174,7 @@ def run_worker(duration_seconds: int) -> None:
         if not updates:
             continue
 
+        same_batch_messages: list[dict[str, str]] = []
         for upd in updates:
             update_id = int(upd.get("update_id", 0))
             if update_id:
@@ -187,11 +192,12 @@ def run_worker(duration_seconds: int) -> None:
                 continue
 
             if text:
-                buffer.append({"speaker": speaker_name(msg), "text": text})
+                entry = {"speaker": speaker_name(msg), "text": text}
+                if text.strip().lower() == "/aximo":
+                    handle_aximo_command(backend_base, aximo_api_token, buffer, same_batch_messages)
+                buffer.append(entry)
+                same_batch_messages.append(entry)
                 log(f"buffer_size={len(buffer)}")
-
-            if text.strip().lower() == "/aximo":
-                handle_aximo_command(backend_base, aximo_api_token, buffer)
 
     log("worker stop")
 
