@@ -74,9 +74,11 @@ export default function KanbanPage() {
     window.localStorage.setItem(ARCHIVE_STORAGE_KEY, JSON.stringify(Array.from(archivedIds)));
   }, [archivedIds]);
 
+  const sanitizeErrorText = (value: string) => value.replace(/[\r\n\t]+/g, " ").replace(/[^\x20-\x7E]/g, "").trim();
+
   const readErrorSnippet = async (res: Response) => {
     try {
-      const body = (await res.text()).trim();
+      const body = sanitizeErrorText(await res.text());
       return body.slice(0, 200);
     } catch {
       return "";
@@ -360,7 +362,18 @@ export default function KanbanPage() {
         </header>
 
         {loading ? <p className="text-sm text-slate-600">Loading...</p> : null}
-        {error ? <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p> : null}
+        {error ? (
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+            <p>{error}</p>
+            <button
+              type="button"
+              onClick={() => void fetchTasks()}
+              className="shrink-0 rounded-md border border-rose-300 bg-white px-2.5 py-1 text-xs font-medium text-rose-700 transition hover:bg-rose-100"
+            >
+              Retry
+            </button>
+          </div>
+        ) : null}
 
         <div className="grid gap-4 md:grid-cols-3">
           {columns.map((column) => {
