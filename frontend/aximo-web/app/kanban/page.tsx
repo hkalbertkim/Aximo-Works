@@ -435,6 +435,8 @@ export default function KanbanPage() {
     grouped = false
   ) => {
     const isChild = task.parent_id != null;
+    const isPendingApproval = task.status === "pending_approval";
+    const isApproved = task.status === "approved";
     const due = getDueSeverity(task);
     const dueClass = dueBadgeClass(due.severity);
     const dueLabel = dueBadgeLabel(due.severity);
@@ -511,7 +513,7 @@ export default function KanbanPage() {
                 </span>
               ) : null}
             </div>
-            {task.status === "approved" && task.approved_at ? (
+            {isApproved && task.approved_at ? (
               <div className="text-xs text-slate-400">
                 Approved by {task.approved_by || "admin"} at {formatCreatedAt(task.approved_at)}
               </div>
@@ -523,7 +525,7 @@ export default function KanbanPage() {
             ) : null}
 
             <div className="flex flex-wrap gap-2 pt-1">
-              {task.status === "pending_approval" ? (
+              {isPendingApproval ? (
                 <>
                   <button
                     type="button"
@@ -547,7 +549,7 @@ export default function KanbanPage() {
                   </button>
                 </>
               ) : null}
-              {columnKey !== "done" && task.status !== "pending_approval" ? (
+              {columnKey !== "done" && !isPendingApproval ? (
                 <>
                   <button
                     type="button"
