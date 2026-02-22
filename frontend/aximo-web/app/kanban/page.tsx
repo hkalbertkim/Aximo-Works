@@ -54,6 +54,13 @@ const formatCreatedAt = (value: string) => {
 };
 
 type DueSeverity = "overdue" | "due_soon" | "upcoming" | "no_due";
+type PressureComputed = {
+  timeScore: number;
+  base: number;
+  p2: number;
+  bucket: DueSeverity;
+  dueAt: Date | null;
+};
 
 const parseDateSafe = (value?: string | null): Date | null => {
   if (!value) return null;
@@ -66,57 +73,31 @@ const parseDateSafe = (value?: string | null): Date | null => {
 };
 
 const getDueSeverity = (task: Task): { severity: DueSeverity; rank: number; dueAt: Date | null } => {
-  const dueString = task.due_date;
-  if (!dueString) return { severity: "no_due", rank: 3, dueAt: null };
-
-  const dueMs = Date.parse(dueString);
-  if (Number.isNaN(dueMs)) return { severity: "no_due", rank: 3, dueAt: null };
-
-  const nowMs = Date.now();
-  const h24 = 24 * 60 * 60 * 1000;
-  const h72 = 72 * 60 * 60 * 1000;
-
-  let severity: DueSeverity = "no_due";
-  let rank = 3;
-  if (dueMs < nowMs) {
-    severity = "overdue";
-    rank = 0;
-  } else if (nowMs <= dueMs && dueMs < nowMs + h24) {
-    severity = "due_soon";
-    rank = 1;
-  } else if (nowMs + h24 <= dueMs && dueMs < nowMs + h72) {
-    severity = "upcoming";
-    rank = 2;
-  }
-
-  if (task.text.startsWith("[DEMO]") && severity === "overdue" && dueMs > nowMs) {
-    console.warn("DEMO due-bucket mismatch", { title: task.text, dueMs, nowMs });
-  }
-
-  return { severity, rank, dueAt: new Date(dueMs) };
+  const computed = computePressure(task, Date.now());
+  const rank = computed.bucket === "overdue" ? 0 : computed.bucket === "due_soon" ? 1 : computed.bucket === "upcoming" ? 2 : 3;
+  return { severity: computed.bucket, rank, dueAt: computed.dueAt };
 };
 
-const getTimeScore = (task: Task): number => {
+const getTimeScore = (task: Task, nowMs: number): { timeScore: number; bucket: DueSeverity; dueAt: Date | null } => {
   const dueString = task.due_date;
-  if (!dueString) return 0;
+  if (!dueString) return { timeScore: 0, bucket: "no_due", dueAt: null };
+
   const dueMs = Date.parse(dueString);
-  if (Number.isNaN(dueMs)) return 0;
+  if (Number.isNaN(dueMs)) return { timeScore: 0, bucket: "no_due", dueAt: null };
 
-  const nowMs = Date.now();
+  const h24 = 24 * 60 * 60 * 1000;
+  const h72 = 72 * 60 * 60 * 1000;
   const h = 60 * 60 * 1000;
-  const h24 = 24 * h;
-  const h72 = 72 * h;
-
   if (dueMs < nowMs) {
-    return Math.min(999, 100 + Math.ceil((nowMs - dueMs) / h));
+    return { timeScore: Math.min(999, 100 + Math.ceil((nowMs - dueMs) / h)), bucket: "overdue", dueAt: new Date(dueMs) };
   }
   if (nowMs <= dueMs && dueMs < nowMs + h24) {
-    return Math.min(999, 50 + Math.ceil((h24 - (dueMs - nowMs)) / h));
+    return { timeScore: Math.min(999, 50 + Math.ceil((h24 - (dueMs - nowMs)) / h)), bucket: "due_soon", dueAt: new Date(dueMs) };
   }
   if (nowMs + h24 <= dueMs && dueMs < nowMs + h72) {
-    return Math.min(999, 10 + Math.ceil((h72 - (dueMs - nowMs)) / h));
+    return { timeScore: Math.min(999, 10 + Math.ceil((h72 - (dueMs - nowMs)) / h)), bucket: "upcoming", dueAt: new Date(dueMs) };
   }
-  return 0;
+  return { timeScore: 0, bucket: "no_due", dueAt: new Date(dueMs) };
 };
 
 const normalizePriority = (priority?: string | null): "low" | "medium" | "high" => {
@@ -133,14 +114,13 @@ const clampWeight = (weight?: number | null): number => {
   return value;
 };
 
-const getPressureScore = (task: Task): number => {
-  const timeScore = getTimeScore(task);
-  if (timeScore <= 0) return 0;
-
+const computePressure = (task: Task, nowMs: number): PressureComputed => {
+  const { timeScore, bucket, dueAt } = getTimeScore(task, nowMs);
   const priority = normalizePriority(task.priority);
   const priorityFactor = priority === "high" ? 2.0 : priority === "low" ? 0.5 : 1.0;
   const base = clampWeight(task.weight) * priorityFactor;
-  return Math.min(999, Math.max(0, Math.ceil(base * timeScore)));
+  const p2 = Math.min(999, Math.max(0, Math.ceil(base * timeScore)));
+  return { timeScore, base, p2, bucket, dueAt };
 };
 
 const isDoneOlderThan7Days = (task: Task, now = new Date()) => {
@@ -410,7 +390,7 @@ export default function KanbanPage() {
     const due = getDueSeverity(task);
     const dueClass = dueBadgeClass(due.severity);
     const dueLabel = dueBadgeLabel(due.severity);
-    const pressure = getPressureScore(task);
+    const pressure = computePressure(task, Date.now());
     const isOverdue = due.severity === "overdue";
     const priority = normalizePriority(task.priority);
     const weight = clampWeight(task.weight);
@@ -468,7 +448,7 @@ export default function KanbanPage() {
             <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
               <span className="rounded bg-slate-100 px-2 py-0.5 font-mono">{task.id.slice(0, 8)}</span>
               <span>{formatCreatedAt(task.created_at)}</span>
-              <span className="rounded bg-slate-800 px-2 py-0.5 text-white">P:{pressure}</span>
+              <span className="rounded bg-slate-800 px-2 py-0.5 text-white">P:{pressure.p2}</span>
               {task.due_date ? <span className="rounded bg-slate-100 px-2 py-0.5">Due: {task.due_date}</span> : null}
               {dueLabel ? <span className={`rounded px-2 py-0.5 ${dueClass}`}>{dueLabel}</span> : null}
             </div>
@@ -477,6 +457,11 @@ export default function KanbanPage() {
               <span>
                 prio:{priority} w:{weight}
               </span>
+              {task.text.startsWith("[DEMO] Due Soon") ? (
+                <span className="ml-2 text-slate-400">
+                  ts:{pressure.timeScore} base:{pressure.base.toFixed(2)} p2:{pressure.p2}
+                </span>
+              ) : null}
             </div>
 
             <div className="flex flex-wrap gap-2 pt-1">
@@ -638,7 +623,7 @@ export default function KanbanPage() {
           <div className={`grid gap-4 md:grid-cols-3 ${backendOk ? "" : "pointer-events-none opacity-70"}`}>
             {columns.map((column) => {
               const inColumn = tasksByStatus[column.key];
-              const pressureTotal = inColumn.reduce((sum, task) => sum + getPressureScore(task), 0);
+              const pressureTotal = inColumn.reduce((sum, task) => sum + computePressure(task, Date.now()).p2, 0);
               const parents = inColumn.filter((task) => task.parent_id == null);
               const orphanChildren = inColumn.filter(
                 (task) => task.parent_id != null && !inColumn.some((candidate) => candidate.id === task.parent_id)
