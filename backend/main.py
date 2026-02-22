@@ -116,8 +116,6 @@ app.add_middleware(
 )
 
 DB_PATH = "/Users/albertkim/02_PROJECTS/03_aximo/backend/aximo.db"
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 TELEGRAM_WEBHOOK_SECRET = os.getenv("TELEGRAM_WEBHOOK_SECRET", "").strip()
 
 
@@ -253,69 +251,20 @@ def init_db() -> None:
         conn.execute("UPDATE tasks SET weight = 0.1 WHERE weight < 0.1")
         conn.execute("UPDATE tasks SET weight = 10.0 WHERE weight > 10.0")
         conn.commit()
-
-
-def send_telegram(text: str) -> None:
-    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
-        print("TELEGRAM disabled: missing TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID")
-        return
-
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    payload = {"chat_id": TELEGRAM_CHAT_ID, "text": text}
-    req = urllib.request.Request(
-        url,
-        data=json.dumps(payload).encode("utf-8"),
-        headers={"Content-Type": "application/json"},
-        method="POST",
+    print(
+        "TELEGRAM env: "
+        f"TOKEN_PRESENT={'YES' if bool(os.getenv('TELEGRAM_BOT_TOKEN', '').strip()) else 'NO'} "
+        f"CHAT_ID_PRESENT={'YES' if bool(os.getenv('TELEGRAM_CHAT_ID', '').strip()) else 'NO'}"
     )
-    try:
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            status = resp.getcode()
-            body = resp.read().decode("utf-8", errors="replace")
-            if status != 200:
-                print(f"TELEGRAM send failed: status={status} body={body}")
-    except Exception as e:
-        print(f"TELEGRAM exception: {repr(e)}")
-        return
 
 
 def notify_telegram(text: str) -> None:
-    send_telegram(text)
-
-
-def telegram_api_post(method: str, payload: dict) -> tuple[int | None, str]:
-    if not TELEGRAM_BOT_TOKEN:
-        return None, "missing TELEGRAM_BOT_TOKEN"
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/{method}"
-    req = urllib.request.Request(
-        url,
-        data=json.dumps(payload).encode("utf-8"),
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            status = resp.getcode()
-            body = resp.read().decode("utf-8", errors="replace")
-            return status, body
-    except urllib.error.HTTPError as e:
-        body = e.read().decode("utf-8", errors="replace")
-        return int(e.code), body
-    except Exception as e:
-        return None, repr(e)
-
-
-def send_telegram_to_chat(chat_id: str | int, text: str, reply_markup: dict | None = None) -> None:
-    payload: dict = {"chat_id": str(chat_id), "text": text}
-    if reply_markup is not None:
-        payload["reply_markup"] = reply_markup
-    status, body = telegram_api_post("sendMessage", payload)
-    if status != 200:
-        print(f"TELEGRAM send failed: status={status} body={body[:200]}")
+    send_telegram_notify(text)
 
 
 def send_task_created_telegram(task: Task) -> None:
-    if not TELEGRAM_CHAT_ID:
+    chat_id = os.getenv("TELEGRAM_CHAT_ID", "").strip()
+    if not chat_id:
         return
     text = (
         f"Task Created: {task_title(task)} (id:{short_id(task.id)})\n"
@@ -329,7 +278,7 @@ def send_task_created_telegram(task: Task) -> None:
             ]
         ]
     }
-    send_telegram_to_chat(TELEGRAM_CHAT_ID, text, reply_markup=keyboard)
+    send_telegram_notify(text, chat_id=chat_id, reply_markup=keyboard)
 
 
 def short_id(task_id: str) -> str:
@@ -484,10 +433,11 @@ def health() -> dict:
 
 @app.get("/telegram/health")
 def telegram_health() -> dict:
-    if not TELEGRAM_BOT_TOKEN:
+    token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
+    if not token:
         return {"ok": False, "error_code": 0, "body": "missing TELEGRAM_BOT_TOKEN"}
 
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getMe"
+    url = f"https://api.telegram.org/bot{token}/getMe"
     req = urllib.request.Request(url, method="GET")
     try:
         with urllib.request.urlopen(req, timeout=10) as resp:
@@ -593,14 +543,14 @@ async def telegram_webhook(request: Request) -> JSONResponse:
                 try:
                     updated = approve_task_internal(task_id, approved_by="admin")
                     if chat_id is not None:
-                        send_telegram_to_chat(chat_id, f"✅ Approved: {task_title(updated)} (id:{short_id(updated.id)})")
+                        send_telegram_notify(f"✅ Approved: {task_title(updated)} (id:{short_id(updated.id)})", chat_id=chat_id)
                 except HTTPException as e:
                     if chat_id is not None:
-                        send_telegram_to_chat(chat_id, f"Approve failed (id:{short_id(task_id)}): {e.detail}")
+                        send_telegram_notify(f"Approve failed (id:{short_id(task_id)}): {e.detail}", chat_id=chat_id)
             elif data.startswith("REJECT:"):
                 task_id = data.split(":", 1)[1].strip()
                 if chat_id is not None:
-                    send_telegram_to_chat(chat_id, f"Reply with: REJECT_REASON:{task_id}:<your reason>")
+                    send_telegram_notify(f"Reply with: REJECT_REASON:{task_id}:<your reason>", chat_id=chat_id)
 
             return JSONResponse(status_code=200, content={"ok": True})
 
@@ -617,12 +567,12 @@ async def telegram_webhook(request: Request) -> JSONResponse:
                     try:
                         updated = reject_task_internal(task_id, reason, rejected_by="admin")
                         if chat_id is not None:
-                            send_telegram_to_chat(chat_id, f"❌ Rejected: {task_title(updated)} (id:{short_id(updated.id)})")
+                            send_telegram_notify(f"❌ Rejected: {task_title(updated)} (id:{short_id(updated.id)})", chat_id=chat_id)
                     except HTTPException as e:
                         if chat_id is not None:
-                            send_telegram_to_chat(chat_id, f"Reject failed (id:{short_id(task_id)}): {e.detail}")
+                            send_telegram_notify(f"Reject failed (id:{short_id(task_id)}): {e.detail}", chat_id=chat_id)
                 elif chat_id is not None:
-                    send_telegram_to_chat(chat_id, "Reply with: REJECT_REASON:<task_id>:<your reason>")
+                    send_telegram_notify("Reply with: REJECT_REASON:<task_id>:<your reason>", chat_id=chat_id)
     except Exception:
         pass
 
