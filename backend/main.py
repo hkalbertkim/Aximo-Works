@@ -32,6 +32,10 @@ class TaskStatusUpdateRequest(BaseModel):
     status: Literal["pending_approval", "approved", "done"]
 
 
+class TaskRejectRequest(BaseModel):
+    reason: str | None = None
+
+
 class Task(BaseModel):
     id: str
     text: str
@@ -45,6 +49,11 @@ class Task(BaseModel):
     owner: str | None = None
     priority: Literal["low", "medium", "high"] = "medium"
     weight: float = 1.0
+    approved_at: str | None = None
+    approved_by: str | None = None
+    rejected_at: str | None = None
+    rejected_by: str | None = None
+    reject_reason: str | None = None
 
 
 class SummaryResult(BaseModel):
@@ -137,7 +146,9 @@ def clamp_weight(weight: float | None) -> float:
     return value
 
 
-def task_to_db_values(task: Task) -> tuple[str, str, str, str, str | None, str, str | None, str | None, str | None, str | None, str, float]:
+def task_to_db_values(
+    task: Task,
+) -> tuple[str, str, str, str, str | None, str, str | None, str | None, str | None, str | None, str, float, str | None, str | None, str | None, str | None, str | None]:
     return (
         task.id,
         task.text,
@@ -151,6 +162,11 @@ def task_to_db_values(task: Task) -> tuple[str, str, str, str, str | None, str, 
         task.owner,
         normalize_priority(task.priority),
         clamp_weight(task.weight),
+        task.approved_at,
+        task.approved_by,
+        task.rejected_at,
+        task.rejected_by,
+        task.reject_reason,
     )
 
 
@@ -171,6 +187,11 @@ def row_to_task(row: sqlite3.Row) -> Task:
         owner=row["owner"] if "owner" in row.keys() else None,
         priority=normalize_priority(row["priority"] if "priority" in row.keys() else None),
         weight=clamp_weight(row["weight"] if "weight" in row.keys() else None),
+        approved_at=row["approved_at"] if "approved_at" in row.keys() else None,
+        approved_by=row["approved_by"] if "approved_by" in row.keys() else None,
+        rejected_at=row["rejected_at"] if "rejected_at" in row.keys() else None,
+        rejected_by=row["rejected_by"] if "rejected_by" in row.keys() else None,
+        reject_reason=row["reject_reason"] if "reject_reason" in row.keys() else None,
     )
 
 
@@ -198,7 +219,12 @@ def init_db() -> None:
                 due_date TEXT NULL,
                 owner TEXT NULL,
                 priority TEXT NOT NULL DEFAULT 'medium',
-                weight REAL NOT NULL DEFAULT 1.0
+                weight REAL NOT NULL DEFAULT 1.0,
+                approved_at TEXT NULL,
+                approved_by TEXT NULL,
+                rejected_at TEXT NULL,
+                rejected_by TEXT NULL,
+                reject_reason TEXT NULL
             )
             """
         )
@@ -211,6 +237,16 @@ def init_db() -> None:
             conn.execute("ALTER TABLE tasks ADD COLUMN priority TEXT NOT NULL DEFAULT 'medium'")
         if "weight" not in columns:
             conn.execute("ALTER TABLE tasks ADD COLUMN weight REAL NOT NULL DEFAULT 1.0")
+        if "approved_at" not in columns:
+            conn.execute("ALTER TABLE tasks ADD COLUMN approved_at TEXT NULL")
+        if "approved_by" not in columns:
+            conn.execute("ALTER TABLE tasks ADD COLUMN approved_by TEXT NULL")
+        if "rejected_at" not in columns:
+            conn.execute("ALTER TABLE tasks ADD COLUMN rejected_at TEXT NULL")
+        if "rejected_by" not in columns:
+            conn.execute("ALTER TABLE tasks ADD COLUMN rejected_by TEXT NULL")
+        if "reject_reason" not in columns:
+            conn.execute("ALTER TABLE tasks ADD COLUMN reject_reason TEXT NULL")
         conn.execute("UPDATE tasks SET priority = 'medium' WHERE priority IS NULL OR priority NOT IN ('low','medium','high')")
         conn.execute("UPDATE tasks SET weight = 1.0 WHERE weight IS NULL")
         conn.execute("UPDATE tasks SET weight = 0.1 WHERE weight < 0.1")
@@ -395,8 +431,12 @@ def create_task(payload: TaskCreateRequest) -> Task:
     with get_db_connection() as conn:
         conn.execute(
             """
-            INSERT INTO tasks (id, text, type, status, parent_id, created_at, output, ran_at, due_date, owner, priority, weight)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO tasks (
+                id, text, type, status, parent_id, created_at, output, ran_at,
+                due_date, owner, priority, weight, approved_at, approved_by,
+                rejected_at, rejected_by, reject_reason
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             task_to_db_values(task),
         )
@@ -418,15 +458,54 @@ def list_tasks() -> list[Task]:
 @app.post("/tasks/{task_id}/approve")
 def approve_task(task_id: str) -> Task:
     with get_db_connection() as conn:
-        cur = conn.execute("UPDATE tasks SET status = ? WHERE id = ?", ("approved", task_id))
-        if cur.rowcount == 0:
+        task = get_task_by_id(conn, task_id)
+        if task is None:
             raise HTTPException(status_code=404, detail="Task not found")
+        if task.status == "done":
+            raise HTTPException(status_code=409, detail="Task already done")
+        if task.status == "approved":
+            return task
+        approved_at = datetime.now(timezone.utc).isoformat()
+        conn.execute(
+            """
+            UPDATE tasks
+            SET status = ?, approved_at = ?, approved_by = ?,
+                rejected_at = NULL, rejected_by = NULL, reject_reason = NULL
+            WHERE id = ?
+            """,
+            ("approved", approved_at, "admin", task_id),
+        )
         conn.commit()
         task = get_task_by_id(conn, task_id)
     if task is None:
         raise HTTPException(status_code=404, detail="Task not found")
     send_telegram_notify(f"✅ Approved: {task_title(task)} (id:{short_id(task.id)})")
     return task
+
+
+@app.post("/tasks/{task_id}/reject")
+def reject_task(task_id: str, payload: TaskRejectRequest) -> Task:
+    with get_db_connection() as conn:
+        task = get_task_by_id(conn, task_id)
+        if task is None:
+            raise HTTPException(status_code=404, detail="Task not found")
+        if task.status == "done":
+            raise HTTPException(status_code=409, detail="Task already done")
+        rejected_at = datetime.now(timezone.utc).isoformat()
+        reject_reason = (payload.reason or "")[:500] or None
+        conn.execute(
+            """
+            UPDATE tasks
+            SET status = ?, rejected_at = ?, rejected_by = ?, reject_reason = ?
+            WHERE id = ?
+            """,
+            ("pending_approval", rejected_at, "admin", reject_reason, task_id),
+        )
+        conn.commit()
+        updated = get_task_by_id(conn, task_id)
+    if updated is None:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return updated
 
 
 @app.post("/tasks/{task_id}/status")
@@ -494,8 +573,12 @@ def run_task(task_id: str) -> Task:
                 )
                 conn.execute(
                     """
-                    INSERT INTO tasks (id, text, type, status, parent_id, created_at, output, ran_at, due_date, owner, priority, weight)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO tasks (
+                        id, text, type, status, parent_id, created_at, output, ran_at,
+                        due_date, owner, priority, weight, approved_at, approved_by,
+                        rejected_at, rejected_by, reject_reason
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     task_to_db_values(child),
                 )
