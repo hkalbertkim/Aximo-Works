@@ -23,6 +23,9 @@ class TaskCreateRequest(BaseModel):
     text: str
     type: Literal["internal_generate", "external_execute"] | None = None
     due_date: str | None = None
+    owner: str | None = None
+    priority: Literal["low", "medium", "high"] | None = None
+    weight: float | None = None
 
 
 class TaskStatusUpdateRequest(BaseModel):
@@ -39,6 +42,9 @@ class Task(BaseModel):
     output: dict | None = None
     ran_at: str | None = None
     due_date: str | None = None
+    owner: str | None = None
+    priority: Literal["low", "medium", "high"] = "medium"
+    weight: float = 1.0
 
 
 class SummaryResult(BaseModel):
@@ -111,7 +117,27 @@ def get_db_connection() -> sqlite3.Connection:
     return conn
 
 
-def task_to_db_values(task: Task) -> tuple[str, str, str, str, str | None, str, str | None, str | None, str | None]:
+def normalize_priority(priority: str | None) -> Literal["low", "medium", "high"]:
+    if priority in ("low", "medium", "high"):
+        return priority
+    return "medium"
+
+
+def clamp_weight(weight: float | None) -> float:
+    if weight is None:
+        return 1.0
+    try:
+        value = float(weight)
+    except Exception:
+        return 1.0
+    if value < 0.1:
+        return 0.1
+    if value > 10.0:
+        return 10.0
+    return value
+
+
+def task_to_db_values(task: Task) -> tuple[str, str, str, str, str | None, str, str | None, str | None, str | None, str | None, str, float]:
     return (
         task.id,
         task.text,
@@ -122,6 +148,9 @@ def task_to_db_values(task: Task) -> tuple[str, str, str, str, str | None, str, 
         json.dumps(task.output) if task.output is not None else None,
         task.ran_at,
         task.due_date,
+        task.owner,
+        normalize_priority(task.priority),
+        clamp_weight(task.weight),
     )
 
 
@@ -139,6 +168,9 @@ def row_to_task(row: sqlite3.Row) -> Task:
         output=output,
         ran_at=row["ran_at"],
         due_date=row["due_date"],
+        owner=row["owner"] if "owner" in row.keys() else None,
+        priority=normalize_priority(row["priority"] if "priority" in row.keys() else None),
+        weight=clamp_weight(row["weight"] if "weight" in row.keys() else None),
     )
 
 
@@ -163,13 +195,26 @@ def init_db() -> None:
                 created_at TEXT NOT NULL,
                 output TEXT NULL,
                 ran_at TEXT NULL,
-                due_date TEXT NULL
+                due_date TEXT NULL,
+                owner TEXT NULL,
+                priority TEXT NOT NULL DEFAULT 'medium',
+                weight REAL NOT NULL DEFAULT 1.0
             )
             """
         )
         columns = {row["name"] for row in conn.execute("PRAGMA table_info(tasks)").fetchall()}
         if "due_date" not in columns:
             conn.execute("ALTER TABLE tasks ADD COLUMN due_date TEXT NULL")
+        if "owner" not in columns:
+            conn.execute("ALTER TABLE tasks ADD COLUMN owner TEXT NULL")
+        if "priority" not in columns:
+            conn.execute("ALTER TABLE tasks ADD COLUMN priority TEXT NOT NULL DEFAULT 'medium'")
+        if "weight" not in columns:
+            conn.execute("ALTER TABLE tasks ADD COLUMN weight REAL NOT NULL DEFAULT 1.0")
+        conn.execute("UPDATE tasks SET priority = 'medium' WHERE priority IS NULL OR priority NOT IN ('low','medium','high')")
+        conn.execute("UPDATE tasks SET weight = 1.0 WHERE weight IS NULL")
+        conn.execute("UPDATE tasks SET weight = 0.1 WHERE weight < 0.1")
+        conn.execute("UPDATE tasks SET weight = 10.0 WHERE weight > 10.0")
         conn.commit()
 
 
@@ -343,12 +388,15 @@ def create_task(payload: TaskCreateRequest) -> Task:
         status="pending_approval",
         created_at=datetime.now(timezone.utc).isoformat(),
         due_date=payload.due_date,
+        owner=payload.owner,
+        priority=normalize_priority(payload.priority),
+        weight=clamp_weight(payload.weight),
     )
     with get_db_connection() as conn:
         conn.execute(
             """
-            INSERT INTO tasks (id, text, type, status, parent_id, created_at, output, ran_at, due_date)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO tasks (id, text, type, status, parent_id, created_at, output, ran_at, due_date, owner, priority, weight)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             task_to_db_values(task),
         )
@@ -446,8 +494,8 @@ def run_task(task_id: str) -> Task:
                 )
                 conn.execute(
                     """
-                    INSERT INTO tasks (id, text, type, status, parent_id, created_at, output, ran_at, due_date)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO tasks (id, text, type, status, parent_id, created_at, output, ran_at, due_date, owner, priority, weight)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     task_to_db_values(child),
                 )
