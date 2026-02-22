@@ -53,7 +53,7 @@ def delete_existing_demo_tasks() -> None:
             title = row["text"]
             conn.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
             conn.execute("DELETE FROM tasks WHERE parent_id = ?", (task_id,))
-            print(f"delete status=200 title={title}")
+            print(f"status=200 id={task_id} title={title}")
         conn.commit()
     finally:
         conn.close()
@@ -63,26 +63,38 @@ def iso_utc(dt: datetime) -> str:
     return dt.astimezone(timezone.utc).replace(microsecond=0).isoformat()
 
 
-def create_seed(title: str, due_date_iso: str, done: bool, token: str) -> None:
+def create_seed(
+    title: str,
+    due_date_iso: str,
+    done: bool,
+    owner: str | None,
+    priority: str,
+    weight: float,
+    token: str,
+) -> None:
     status_code, body = api_post(
         "/tasks",
         {
             "text": title,
             "type": "internal_generate",
             "due_date": due_date_iso,
+            "owner": owner,
+            "priority": priority,
+            "weight": weight,
         },
         token,
     )
     task_id = str(body.get("id", ""))
-    print(f"create status={status_code} title={title}")
+    print(f"status={status_code} id={task_id} title={title}")
 
     if done and task_id:
-        status_code2, _ = api_post(
+        status_code2, body2 = api_post(
             f"/tasks/{task_id}/status",
             {"status": "done"},
             token,
         )
-        print(f"status-update status={status_code2} title={title}")
+        updated_id = str(body2.get("id", task_id))
+        print(f"status={status_code2} id={updated_id} title={title}")
 
 
 def main() -> None:
@@ -91,10 +103,51 @@ def main() -> None:
 
     delete_existing_demo_tasks()
 
-    create_seed("[DEMO] Overdue (3d ago)", iso_utc(now - timedelta(days=3)), False, token)
-    create_seed("[DEMO] Due Soon (1h)", iso_utc(now + timedelta(hours=1)), False, token)
-    create_seed("[DEMO] Upcoming (2d)", iso_utc(now + timedelta(days=2)), False, token)
-    create_seed("[DEMO] Done old (14d ago)", iso_utc(now - timedelta(days=14)), True, token)
+    create_seed(
+        "[DEMO] Due Soon HIGH w3 (1h)",
+        iso_utc(now + timedelta(hours=1)),
+        False,
+        "alice",
+        "high",
+        3.0,
+        token,
+    )
+    create_seed(
+        "[DEMO] Due Soon MED w1 (1h)",
+        iso_utc(now + timedelta(hours=1)),
+        False,
+        "bob",
+        "medium",
+        1.0,
+        token,
+    )
+    create_seed(
+        "[DEMO] Due Soon LOW w0.5 (1h)",
+        iso_utc(now + timedelta(hours=1)),
+        False,
+        "carol",
+        "low",
+        0.5,
+        token,
+    )
+    create_seed(
+        "[DEMO] Overdue HIGH w2 (2d ago)",
+        iso_utc(now - timedelta(days=2)),
+        False,
+        "alice",
+        "high",
+        2.0,
+        token,
+    )
+    create_seed(
+        "[DEMO] Done old MED w1 (14d ago)",
+        iso_utc(now - timedelta(days=14)),
+        True,
+        "bob",
+        "medium",
+        1.0,
+        token,
+    )
 
 
 if __name__ == "__main__":
