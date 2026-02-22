@@ -74,7 +74,7 @@ const getDueSeverity = (task: Task, now = new Date()): { severity: DueSeverity; 
 
 const isDoneOlderThan7Days = (task: Task, now = new Date()) => {
   if (task.status !== "done") return false;
-  const ref = parseDateSafe(task.updated_at ?? task.created_at);
+  const ref = parseDateSafe(task.updated_at ?? task.created_at ?? task.due_date);
   if (!ref) return false;
   return ref.getTime() < now.getTime() - 7 * 24 * 60 * 60 * 1000;
 };
