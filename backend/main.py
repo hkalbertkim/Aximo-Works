@@ -68,7 +68,7 @@ AXIMO_IP_ALLOWLIST = [ip.strip() for ip in os.getenv("AXIMO_IP_ALLOWLIST", "").s
 
 
 class AximoAPIGuard(BaseHTTPMiddleware):
-    PUBLIC_PATHS = {"/health", "/telegram/health", "/docs", "/redoc", "/openapi.json"}
+    PUBLIC_PATHS = {"/health", "/telegram/health", "/telegram/webhook", "/docs", "/redoc", "/openapi.json"}
 
     async def dispatch(self, request: Request, call_next):
         path = request.url.path
@@ -118,6 +118,7 @@ app.add_middleware(
 DB_PATH = "/Users/albertkim/02_PROJECTS/03_aximo/backend/aximo.db"
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+TELEGRAM_WEBHOOK_SECRET = os.getenv("TELEGRAM_WEBHOOK_SECRET", "").strip()
 
 
 def get_db_connection() -> sqlite3.Connection:
@@ -282,6 +283,55 @@ def notify_telegram(text: str) -> None:
     send_telegram(text)
 
 
+def telegram_api_post(method: str, payload: dict) -> tuple[int | None, str]:
+    if not TELEGRAM_BOT_TOKEN:
+        return None, "missing TELEGRAM_BOT_TOKEN"
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/{method}"
+    req = urllib.request.Request(
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            status = resp.getcode()
+            body = resp.read().decode("utf-8", errors="replace")
+            return status, body
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8", errors="replace")
+        return int(e.code), body
+    except Exception as e:
+        return None, repr(e)
+
+
+def send_telegram_to_chat(chat_id: str | int, text: str, reply_markup: dict | None = None) -> None:
+    payload: dict = {"chat_id": str(chat_id), "text": text}
+    if reply_markup is not None:
+        payload["reply_markup"] = reply_markup
+    status, body = telegram_api_post("sendMessage", payload)
+    if status != 200:
+        print(f"TELEGRAM send failed: status={status} body={body[:200]}")
+
+
+def send_task_created_telegram(task: Task) -> None:
+    if not TELEGRAM_CHAT_ID:
+        return
+    text = (
+        f"Task Created: {task_title(task)} (id:{short_id(task.id)})\n"
+        f"Due: {task.due_date or '-'}"
+    )
+    keyboard = {
+        "inline_keyboard": [
+            [
+                {"text": "✅ Approve", "callback_data": f"APPROVE:{task.id}"},
+                {"text": "❌ Reject", "callback_data": f"REJECT:{task.id}"},
+            ]
+        ]
+    }
+    send_telegram_to_chat(TELEGRAM_CHAT_ID, text, reply_markup=keyboard)
+
+
 def short_id(task_id: str) -> str:
     return task_id[:8]
 
@@ -310,6 +360,56 @@ def validate_and_normalize_result(raw: dict) -> dict:
     if len(parsed.questions) != 2:
         raise ValueError("questions must have exactly 2 items")
     return parsed.model_dump()
+
+
+def approve_task_internal(task_id: str, approved_by: str = "admin") -> Task:
+    with get_db_connection() as conn:
+        task = get_task_by_id(conn, task_id)
+        if task is None:
+            raise HTTPException(status_code=404, detail="Task not found")
+        if task.status == "done":
+            raise HTTPException(status_code=409, detail="Task already done")
+        if task.status == "approved":
+            return task
+        approved_at = datetime.now(timezone.utc).isoformat()
+        conn.execute(
+            """
+            UPDATE tasks
+            SET status = ?, approved_at = ?, approved_by = ?,
+                rejected_at = NULL, rejected_by = NULL, reject_reason = NULL
+            WHERE id = ?
+            """,
+            ("approved", approved_at, approved_by, task_id),
+        )
+        conn.commit()
+        updated = get_task_by_id(conn, task_id)
+    if updated is None:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return updated
+
+
+def reject_task_internal(task_id: str, reason: str | None, rejected_by: str = "admin") -> Task:
+    with get_db_connection() as conn:
+        task = get_task_by_id(conn, task_id)
+        if task is None:
+            raise HTTPException(status_code=404, detail="Task not found")
+        if task.status == "done":
+            raise HTTPException(status_code=409, detail="Task already done")
+        rejected_at = datetime.now(timezone.utc).isoformat()
+        reject_reason = (reason or "")[:500] or None
+        conn.execute(
+            """
+            UPDATE tasks
+            SET status = ?, rejected_at = ?, rejected_by = ?, reject_reason = ?
+            WHERE id = ?
+            """,
+            ("pending_approval", rejected_at, rejected_by, reject_reason, task_id),
+        )
+        conn.commit()
+        updated = get_task_by_id(conn, task_id)
+    if updated is None:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return updated
 
 
 def _ollama_generate_response(prompt: str) -> str:
@@ -441,6 +541,7 @@ def create_task(payload: TaskCreateRequest) -> Task:
             task_to_db_values(task),
         )
         conn.commit()
+    send_task_created_telegram(task)
     task_title = getattr(task, "title", task.text)
     send_telegram_notify(
         f"🆕 Task Created\nTitle: {task_title}\nStatus: {task.status}\nBoard: https://meeting.aximo.works/kanban"
@@ -457,55 +558,75 @@ def list_tasks() -> list[Task]:
 
 @app.post("/tasks/{task_id}/approve")
 def approve_task(task_id: str) -> Task:
-    with get_db_connection() as conn:
-        task = get_task_by_id(conn, task_id)
-        if task is None:
-            raise HTTPException(status_code=404, detail="Task not found")
-        if task.status == "done":
-            raise HTTPException(status_code=409, detail="Task already done")
-        if task.status == "approved":
-            return task
-        approved_at = datetime.now(timezone.utc).isoformat()
-        conn.execute(
-            """
-            UPDATE tasks
-            SET status = ?, approved_at = ?, approved_by = ?,
-                rejected_at = NULL, rejected_by = NULL, reject_reason = NULL
-            WHERE id = ?
-            """,
-            ("approved", approved_at, "admin", task_id),
-        )
-        conn.commit()
-        task = get_task_by_id(conn, task_id)
-    if task is None:
-        raise HTTPException(status_code=404, detail="Task not found")
+    task = approve_task_internal(task_id, approved_by="admin")
     send_telegram_notify(f"✅ Approved: {task_title(task)} (id:{short_id(task.id)})")
     return task
 
 
 @app.post("/tasks/{task_id}/reject")
 def reject_task(task_id: str, payload: TaskRejectRequest) -> Task:
-    with get_db_connection() as conn:
-        task = get_task_by_id(conn, task_id)
-        if task is None:
-            raise HTTPException(status_code=404, detail="Task not found")
-        if task.status == "done":
-            raise HTTPException(status_code=409, detail="Task already done")
-        rejected_at = datetime.now(timezone.utc).isoformat()
-        reject_reason = (payload.reason or "")[:500] or None
-        conn.execute(
-            """
-            UPDATE tasks
-            SET status = ?, rejected_at = ?, rejected_by = ?, reject_reason = ?
-            WHERE id = ?
-            """,
-            ("pending_approval", rejected_at, "admin", reject_reason, task_id),
-        )
-        conn.commit()
-        updated = get_task_by_id(conn, task_id)
-    if updated is None:
-        raise HTTPException(status_code=404, detail="Task not found")
+    updated = reject_task_internal(task_id, payload.reason, rejected_by="admin")
     return updated
+
+
+@app.post("/telegram/webhook")
+async def telegram_webhook(request: Request) -> JSONResponse:
+    secret = request.headers.get("X-Telegram-Secret", "").strip()
+    if not TELEGRAM_WEBHOOK_SECRET or secret != TELEGRAM_WEBHOOK_SECRET:
+        return JSONResponse(status_code=401, content={"detail": "Unauthorized"})
+
+    try:
+        update = await request.json()
+    except Exception:
+        return JSONResponse(status_code=200, content={"ok": True})
+
+    try:
+        callback_query = update.get("callback_query") if isinstance(update, dict) else None
+        if isinstance(callback_query, dict):
+            data = str(callback_query.get("data") or "")
+            message = callback_query.get("message") or {}
+            chat = message.get("chat") or {}
+            chat_id = chat.get("id")
+
+            if data.startswith("APPROVE:"):
+                task_id = data.split(":", 1)[1].strip()
+                try:
+                    updated = approve_task_internal(task_id, approved_by="admin")
+                    if chat_id is not None:
+                        send_telegram_to_chat(chat_id, f"✅ Approved: {task_title(updated)} (id:{short_id(updated.id)})")
+                except HTTPException as e:
+                    if chat_id is not None:
+                        send_telegram_to_chat(chat_id, f"Approve failed (id:{short_id(task_id)}): {e.detail}")
+            elif data.startswith("REJECT:"):
+                task_id = data.split(":", 1)[1].strip()
+                if chat_id is not None:
+                    send_telegram_to_chat(chat_id, f"Reply with: REJECT_REASON:{task_id}:<your reason>")
+
+            return JSONResponse(status_code=200, content={"ok": True})
+
+        message = update.get("message") if isinstance(update, dict) else None
+        if isinstance(message, dict):
+            text = str(message.get("text") or "")
+            chat = message.get("chat") or {}
+            chat_id = chat.get("id")
+            if text.startswith("REJECT_REASON:"):
+                parts = text.split(":", 2)
+                if len(parts) >= 3:
+                    task_id = parts[1].strip()
+                    reason = parts[2].strip()
+                    try:
+                        updated = reject_task_internal(task_id, reason, rejected_by="admin")
+                        if chat_id is not None:
+                            send_telegram_to_chat(chat_id, f"❌ Rejected: {task_title(updated)} (id:{short_id(updated.id)})")
+                    except HTTPException as e:
+                        if chat_id is not None:
+                            send_telegram_to_chat(chat_id, f"Reject failed (id:{short_id(task_id)}): {e.detail}")
+                elif chat_id is not None:
+                    send_telegram_to_chat(chat_id, "Reply with: REJECT_REASON:<task_id>:<your reason>")
+    except Exception:
+        pass
+
+    return JSONResponse(status_code=200, content={"ok": True})
 
 
 @app.post("/tasks/{task_id}/status")
