@@ -15,6 +15,11 @@ type Task = {
   owner?: string | null;
   priority?: "low" | "medium" | "high" | null;
   weight?: number | null;
+  approved_at?: string | null;
+  approved_by?: string | null;
+  rejected_at?: string | null;
+  rejected_by?: string | null;
+  reject_reason?: string | null;
 };
 
 type ProxyHealthResponse = {
@@ -156,6 +161,7 @@ export default function KanbanPage() {
   const [showArchivedPanel, setShowArchivedPanel] = useState(false);
   const [backendOk, setBackendOk] = useState(true);
   const [healthHint, setHealthHint] = useState("");
+  const [actionErrors, setActionErrors] = useState<Record<string, string>>({});
   const lastAlertAtRef = useRef(0);
   const wasBackendOkRef = useRef(true);
 
@@ -348,6 +354,48 @@ export default function KanbanPage() {
     }
   };
 
+  const approveTask = async (taskId: string) => {
+    setActionErrors((prev) => ({ ...prev, [taskId]: "" }));
+    try {
+      const res = await fetch(`/api/proxy/tasks/${taskId}/approve`, {
+        method: "POST",
+        credentials: "include",
+        cache: "no-store",
+      });
+      if (!res.ok) {
+        const snippet = await readErrorSnippet(res);
+        throw new Error(`HTTP ${res.status}${snippet ? `: ${snippet}` : ""}`);
+      }
+      await fetchTasks();
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Unknown error";
+      setActionErrors((prev) => ({ ...prev, [taskId]: `Approve failed: ${message}` }));
+    }
+  };
+
+  const rejectTask = async (taskId: string) => {
+    const reason = window.prompt("Reject reason (optional):", "") ?? null;
+    if (reason === null) return;
+    setActionErrors((prev) => ({ ...prev, [taskId]: "" }));
+    try {
+      const res = await fetch(`/api/proxy/tasks/${taskId}/reject`, {
+        method: "POST",
+        credentials: "include",
+        cache: "no-store",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason }),
+      });
+      if (!res.ok) {
+        const snippet = await readErrorSnippet(res);
+        throw new Error(`HTTP ${res.status}${snippet ? `: ${snippet}` : ""}`);
+      }
+      await fetchTasks();
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Unknown error";
+      setActionErrors((prev) => ({ ...prev, [taskId]: `Reject failed: ${message}` }));
+    }
+  };
+
   const archiveTask = (taskId: string) => {
     setArchivedIds((prev) => {
       const next = new Set(prev);
@@ -463,9 +511,43 @@ export default function KanbanPage() {
                 </span>
               ) : null}
             </div>
+            {task.status === "approved" && task.approved_at ? (
+              <div className="text-xs text-slate-400">
+                Approved by {task.approved_by || "admin"} at {formatCreatedAt(task.approved_at)}
+              </div>
+            ) : null}
+            {task.reject_reason ? (
+              <div className="text-xs text-rose-600">
+                Rejected by {task.rejected_by || "admin"}: {task.reject_reason}
+              </div>
+            ) : null}
 
             <div className="flex flex-wrap gap-2 pt-1">
-              {columnKey !== "done" ? (
+              {task.status === "pending_approval" ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      void approveTask(task.id);
+                    }}
+                    className="rounded-md bg-emerald-600 px-2.5 py-1 text-xs font-medium text-white transition hover:bg-emerald-700"
+                  >
+                    Approve
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      void rejectTask(task.id);
+                    }}
+                    className="rounded-md bg-rose-600 px-2.5 py-1 text-xs font-medium text-white transition hover:bg-rose-700"
+                  >
+                    Reject
+                  </button>
+                </>
+              ) : null}
+              {columnKey !== "done" && task.status !== "pending_approval" ? (
                 <>
                   <button
                     type="button"
@@ -500,6 +582,7 @@ export default function KanbanPage() {
                 Archive
               </button>
             </div>
+            {actionErrors[task.id] ? <div className="text-xs text-rose-600">{actionErrors[task.id]}</div> : null}
           </div>
         </article>
       </div>
