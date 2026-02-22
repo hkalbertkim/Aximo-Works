@@ -12,6 +12,9 @@ type Task = {
   created_at: string;
   updated_at?: string | null;
   due_date?: string | null;
+  owner?: string | null;
+  priority?: "low" | "medium" | "high" | null;
+  weight?: number | null;
 };
 
 type ProxyHealthResponse = {
@@ -93,7 +96,7 @@ const getDueSeverity = (task: Task): { severity: DueSeverity; rank: number; dueA
   return { severity, rank, dueAt: new Date(dueMs) };
 };
 
-const getPressureScore = (task: Task): number => {
+const getTimeScore = (task: Task): number => {
   const dueString = task.due_date;
   if (!dueString) return 0;
   const dueMs = Date.parse(dueString);
@@ -114,6 +117,30 @@ const getPressureScore = (task: Task): number => {
     return Math.min(999, 10 + Math.ceil((h72 - (dueMs - nowMs)) / h));
   }
   return 0;
+};
+
+const normalizePriority = (priority?: string | null): "low" | "medium" | "high" => {
+  if (priority === "low" || priority === "medium" || priority === "high") {
+    return priority;
+  }
+  return "medium";
+};
+
+const clampWeight = (weight?: number | null): number => {
+  const value = typeof weight === "number" && Number.isFinite(weight) ? weight : 1.0;
+  if (value < 0.1) return 0.1;
+  if (value > 10.0) return 10.0;
+  return value;
+};
+
+const getPressureScore = (task: Task): number => {
+  const timeScore = getTimeScore(task);
+  if (timeScore <= 0) return 0;
+
+  const priority = normalizePriority(task.priority);
+  const priorityFactor = priority === "high" ? 2.0 : priority === "low" ? 0.5 : 1.0;
+  const base = clampWeight(task.weight) * priorityFactor;
+  return Math.min(999, Math.max(0, Math.ceil(base * timeScore)));
 };
 
 const isDoneOlderThan7Days = (task: Task, now = new Date()) => {
@@ -385,6 +412,8 @@ export default function KanbanPage() {
     const dueLabel = dueBadgeLabel(due.severity);
     const pressure = getPressureScore(task);
     const isOverdue = due.severity === "overdue";
+    const priority = normalizePriority(task.priority);
+    const weight = clampWeight(task.weight);
 
     return (
       <div key={task.id} className={grouped ? "space-y-2" : ""}>
@@ -442,6 +471,12 @@ export default function KanbanPage() {
               <span className="rounded bg-slate-800 px-2 py-0.5 text-white">P:{pressure}</span>
               {task.due_date ? <span className="rounded bg-slate-100 px-2 py-0.5">Due: {task.due_date}</span> : null}
               {dueLabel ? <span className={`rounded px-2 py-0.5 ${dueClass}`}>{dueLabel}</span> : null}
+            </div>
+            <div className="text-xs text-slate-500">
+              {task.owner ? <span className="mr-2">Owner: {task.owner}</span> : null}
+              <span>
+                prio:{priority} w:{weight}
+              </span>
             </div>
 
             <div className="flex flex-wrap gap-2 pt-1">
