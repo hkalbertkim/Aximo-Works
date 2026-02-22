@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 type TaskStatus = "pending_approval" | "approved" | "done";
 
@@ -21,6 +21,11 @@ type ProxyHealthResponse = {
 };
 
 const ARCHIVE_STORAGE_KEY = "aximo_archived_task_ids";
+const ALERT_COOLDOWN_MS = 10 * 60 * 1000;
+const ALERT_WEBHOOK =
+  process.env.NEXT_PUBLIC_AXIMO_TELEGRAM_ALERT_WEBHOOK ||
+  process.env.AXIMO_TELEGRAM_ALERT_WEBHOOK ||
+  "";
 
 const columns: Array<{ key: TaskStatus; title: string; barClass: string }> = [
   { key: "pending_approval", title: "Open", barClass: "bg-amber-400" },
@@ -144,6 +149,8 @@ export default function KanbanPage() {
   const [showArchivedPanel, setShowArchivedPanel] = useState(false);
   const [backendOk, setBackendOk] = useState(true);
   const [healthHint, setHealthHint] = useState("");
+  const lastAlertAtRef = useRef(0);
+  const wasBackendOkRef = useRef(true);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -208,6 +215,11 @@ export default function KanbanPage() {
     void fetchTasks();
   }, []);
 
+  const handleRetry = () => {
+    void checkProxyHealth();
+    void fetchTasks();
+  };
+
   const checkProxyHealth = async () => {
     try {
       const res = await fetch("/api/proxy/health", {
@@ -246,6 +258,25 @@ export default function KanbanPage() {
     }, 30_000);
     return () => clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    const turnedRed = !backendOk && wasBackendOkRef.current;
+    const now = Date.now();
+    if (!backendOk && ALERT_WEBHOOK && (turnedRed || now - lastAlertAtRef.current >= ALERT_COOLDOWN_MS)) {
+      lastAlertAtRef.current = now;
+      const payload = {
+        text: "AXIMO Kanban backend issue detected",
+        hint: healthHint || "unknown",
+        ts: new Date(now).toISOString(),
+      };
+      void fetch(ALERT_WEBHOOK, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      }).catch(() => {});
+    }
+    wasBackendOkRef.current = backendOk;
+  }, [backendOk, healthHint]);
 
   const visibleTasks = useMemo(() => {
     return tasks.filter((task) => {
@@ -494,10 +525,7 @@ export default function KanbanPage() {
                 </span>
                 <button
                   type="button"
-                  onClick={() => {
-                    void checkProxyHealth();
-                    void fetchTasks();
-                  }}
+                  onClick={handleRetry}
                   className="rounded-md bg-slate-100 px-3 py-1.5 text-sm font-medium text-slate-900 transition hover:bg-white"
                 >
                   Retry
@@ -540,7 +568,21 @@ export default function KanbanPage() {
               <span className="text-xs text-slate-300">v:cf27283</span>
             </div>
           </div>
-          {!backendOk && healthHint ? <p className="mt-1 text-xs text-rose-200">{healthHint}</p> : null}
+          {!backendOk ? (
+            <div className="mt-2 flex items-center justify-between gap-3 rounded-lg border border-rose-300 bg-rose-100/20 px-3 py-2">
+              <p className="text-xs text-rose-100">
+                Backend Issue — tasks may be stale
+                {healthHint ? ` (${healthHint})` : ""}
+              </p>
+              <button
+                type="button"
+                onClick={handleRetry}
+                className="shrink-0 rounded-md border border-rose-300 bg-white px-2.5 py-1 text-xs font-medium text-rose-700 transition hover:bg-rose-100"
+              >
+                Retry
+              </button>
+            </div>
+          ) : null}
         </header>
 
         {loading ? <p className="text-sm text-slate-600">Loading...</p> : null}
@@ -557,45 +599,48 @@ export default function KanbanPage() {
           </div>
         ) : null}
 
-        <div className="grid gap-4 md:grid-cols-3">
-          {columns.map((column) => {
-            const inColumn = tasksByStatus[column.key];
-            const pressureTotal = inColumn.reduce((sum, task) => sum + getPressureScore(task), 0);
-            const parents = inColumn.filter((task) => task.parent_id == null);
-            const orphanChildren = inColumn.filter(
-              (task) => task.parent_id != null && !inColumn.some((candidate) => candidate.id === task.parent_id)
-            );
+        <div className="relative">
+          <div className={`grid gap-4 md:grid-cols-3 ${backendOk ? "" : "pointer-events-none opacity-70"}`}>
+            {columns.map((column) => {
+              const inColumn = tasksByStatus[column.key];
+              const pressureTotal = inColumn.reduce((sum, task) => sum + getPressureScore(task), 0);
+              const parents = inColumn.filter((task) => task.parent_id == null);
+              const orphanChildren = inColumn.filter(
+                (task) => task.parent_id != null && !inColumn.some((candidate) => candidate.id === task.parent_id)
+              );
 
-            return (
-              <section key={column.key} className="rounded-2xl border border-slate-200 bg-slate-50 p-3 shadow-sm">
-                <div className="mb-3 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-700">{column.title}</h2>
-                    <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs font-semibold text-slate-700">
-                      Pressure:{pressureTotal}
-                    </span>
-                  </div>
-                  <span className="rounded-full bg-white px-2 py-0.5 text-xs font-medium text-slate-500">{inColumn.length}</span>
-                </div>
-
-                <div className="space-y-2">
-                  {groupByParent
-                    ? (
-                        <>
-                          {parents.map((task) => renderTaskTree(task, inColumn, column.barClass, column.key))}
-                          {orphanChildren.map((task) => renderTaskTree(task, inColumn, column.barClass, column.key, 1))}
-                        </>
-                      )
-                    : inColumn.map((task) => renderTaskCard(task, column.barClass, column.key, true, false))}
-                  {!inColumn.length ? (
-                    <div className="rounded-lg border border-dashed border-slate-300 bg-white px-3 py-6 text-center text-xs text-slate-500">
-                      No tasks
+              return (
+                <section key={column.key} className="rounded-2xl border border-slate-200 bg-slate-50 p-3 shadow-sm">
+                  <div className="mb-3 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-700">{column.title}</h2>
+                      <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs font-semibold text-slate-700">
+                        Pressure:{pressureTotal}
+                      </span>
                     </div>
-                  ) : null}
-                </div>
-              </section>
-            );
-          })}
+                    <span className="rounded-full bg-white px-2 py-0.5 text-xs font-medium text-slate-500">{inColumn.length}</span>
+                  </div>
+
+                  <div className="space-y-2">
+                    {groupByParent
+                      ? (
+                          <>
+                            {parents.map((task) => renderTaskTree(task, inColumn, column.barClass, column.key))}
+                            {orphanChildren.map((task) => renderTaskTree(task, inColumn, column.barClass, column.key, 1))}
+                          </>
+                        )
+                      : inColumn.map((task) => renderTaskCard(task, column.barClass, column.key, true, false))}
+                    {!inColumn.length ? (
+                      <div className="rounded-lg border border-dashed border-slate-300 bg-white px-3 py-6 text-center text-xs text-slate-500">
+                        No tasks
+                      </div>
+                    ) : null}
+                  </div>
+                </section>
+              );
+            })}
+          </div>
+          {!backendOk ? <div className="pointer-events-none absolute inset-0 rounded-2xl bg-slate-900/10" /> : null}
         </div>
       </div>
 
