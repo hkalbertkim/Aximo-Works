@@ -88,6 +88,29 @@ const getDueSeverity = (task: Task): { severity: DueSeverity; rank: number; dueA
   return { severity, rank, dueAt: new Date(dueMs) };
 };
 
+const getPressureScore = (task: Task): number => {
+  const dueString = task.due_date;
+  if (!dueString) return 0;
+  const dueMs = Date.parse(dueString);
+  if (Number.isNaN(dueMs)) return 0;
+
+  const nowMs = Date.now();
+  const h = 60 * 60 * 1000;
+  const h24 = 24 * h;
+  const h72 = 72 * h;
+
+  if (dueMs < nowMs) {
+    return Math.min(999, 100 + Math.ceil((nowMs - dueMs) / h));
+  }
+  if (nowMs <= dueMs && dueMs < nowMs + h24) {
+    return Math.min(999, 50 + Math.ceil((h24 - (dueMs - nowMs)) / h));
+  }
+  if (nowMs + h24 <= dueMs && dueMs < nowMs + h72) {
+    return Math.min(999, 10 + Math.ceil((h72 - (dueMs - nowMs)) / h));
+  }
+  return 0;
+};
+
 const isDoneOlderThan7Days = (task: Task, now = new Date()) => {
   if (task.status !== "done") return false;
   const ref = parseDateSafe(task.updated_at ?? task.created_at ?? task.due_date);
@@ -329,6 +352,8 @@ export default function KanbanPage() {
     const due = getDueSeverity(task);
     const dueClass = dueBadgeClass(due.severity);
     const dueLabel = dueBadgeLabel(due.severity);
+    const pressure = getPressureScore(task);
+    const isOverdue = due.severity === "overdue";
 
     return (
       <div key={task.id} className={grouped ? "space-y-2" : ""}>
@@ -343,11 +368,15 @@ export default function KanbanPage() {
             }
           }}
           className={`group relative cursor-pointer overflow-hidden rounded-xl border bg-white/95 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
-            isChild ? "border-slate-200" : "border-slate-300"
+            isOverdue
+              ? "border-rose-300 bg-rose-50/40"
+              : isChild
+                ? "border-slate-200"
+                : "border-slate-300"
           }`}
           style={{ marginLeft: grouped ? depth * 16 : 0 }}
         >
-          <div className={`absolute inset-y-0 left-0 w-1.5 ${barClass}`} />
+          <div className={`absolute inset-y-0 left-0 ${isOverdue ? "w-2.5 bg-rose-500" : `w-1.5 ${barClass}`}`} />
           <div className="space-y-3 p-4 pl-5">
             <div className="flex items-start justify-between gap-2">
               <p className={`line-clamp-3 text-sm ${isChild ? "font-medium text-slate-700" : "font-semibold text-slate-900"}`}>
@@ -379,6 +408,7 @@ export default function KanbanPage() {
             <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
               <span className="rounded bg-slate-100 px-2 py-0.5 font-mono">{task.id.slice(0, 8)}</span>
               <span>{formatCreatedAt(task.created_at)}</span>
+              <span className="rounded bg-slate-800 px-2 py-0.5 text-white">P:{pressure}</span>
               {task.due_date ? <span className="rounded bg-slate-100 px-2 py-0.5">Due: {task.due_date}</span> : null}
               {dueLabel ? <span className={`rounded px-2 py-0.5 ${dueClass}`}>{dueLabel}</span> : null}
             </div>
@@ -529,6 +559,7 @@ export default function KanbanPage() {
         <div className="grid gap-4 md:grid-cols-3">
           {columns.map((column) => {
             const inColumn = tasksByStatus[column.key];
+            const pressureTotal = inColumn.reduce((sum, task) => sum + getPressureScore(task), 0);
             const parents = inColumn.filter((task) => task.parent_id == null);
             const orphanChildren = inColumn.filter(
               (task) => task.parent_id != null && !inColumn.some((candidate) => candidate.id === task.parent_id)
@@ -537,7 +568,12 @@ export default function KanbanPage() {
             return (
               <section key={column.key} className="rounded-2xl border border-slate-200 bg-slate-50 p-3 shadow-sm">
                 <div className="mb-3 flex items-center justify-between">
-                  <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-700">{column.title}</h2>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-700">{column.title}</h2>
+                    <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs font-semibold text-slate-700">
+                      Pressure:{pressureTotal}
+                    </span>
+                  </div>
                   <span className="rounded-full bg-white px-2 py-0.5 text-xs font-medium text-slate-500">{inColumn.length}</span>
                 </div>
 
