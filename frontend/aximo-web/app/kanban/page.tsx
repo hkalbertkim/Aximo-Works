@@ -57,19 +57,35 @@ const parseDateSafe = (value?: string | null): Date | null => {
   return Number.isNaN(dt.getTime()) ? null : dt;
 };
 
-const getDueSeverity = (task: Task, now = new Date()): { severity: DueSeverity; rank: number; dueAt: Date | null } => {
-  const dueAt = parseDateSafe(task.due_date);
-  if (!dueAt) return { severity: "no_due", rank: 3, dueAt: null };
+const getDueSeverity = (task: Task): { severity: DueSeverity; rank: number; dueAt: Date | null } => {
+  const dueString = task.due_date;
+  if (!dueString) return { severity: "no_due", rank: 3, dueAt: null };
 
+  const dueMs = Date.parse(dueString);
+  if (Number.isNaN(dueMs)) return { severity: "no_due", rank: 3, dueAt: null };
+
+  const nowMs = Date.now();
   const h24 = 24 * 60 * 60 * 1000;
   const h72 = 72 * 60 * 60 * 1000;
-  const nowMs = now.getTime();
-  const dueMs = dueAt.getTime();
 
-  if (dueMs < nowMs) return { severity: "overdue", rank: 0, dueAt };
-  if (dueMs < nowMs + h24) return { severity: "due_soon", rank: 1, dueAt };
-  if (dueMs < nowMs + h72) return { severity: "upcoming", rank: 2, dueAt };
-  return { severity: "no_due", rank: 3, dueAt };
+  let severity: DueSeverity = "no_due";
+  let rank = 3;
+  if (dueMs < nowMs) {
+    severity = "overdue";
+    rank = 0;
+  } else if (nowMs <= dueMs && dueMs < nowMs + h24) {
+    severity = "due_soon";
+    rank = 1;
+  } else if (nowMs + h24 <= dueMs && dueMs < nowMs + h72) {
+    severity = "upcoming";
+    rank = 2;
+  }
+
+  if (task.text.startsWith("[DEMO]") && severity === "overdue" && dueMs > nowMs) {
+    console.warn("DEMO due-bucket mismatch", { title: task.text, dueMs, nowMs });
+  }
+
+  return { severity, rank, dueAt: new Date(dueMs) };
 };
 
 const isDoneOlderThan7Days = (task: Task, now = new Date()) => {
