@@ -13,6 +13,12 @@ type Task = {
   due_date?: string | null;
 };
 
+type ProxyHealthResponse = {
+  ok: boolean;
+  upstream_status?: number | null;
+  error?: string;
+};
+
 const ARCHIVE_STORAGE_KEY = "aximo_archived_task_ids";
 
 const columns: Array<{ key: TaskStatus; title: string; barClass: string }> = [
@@ -48,6 +54,8 @@ export default function KanbanPage() {
   const [expandedParentIds, setExpandedParentIds] = useState<Set<string>>(new Set());
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [showArchivedPanel, setShowArchivedPanel] = useState(false);
+  const [backendOk, setBackendOk] = useState(true);
+  const [healthHint, setHealthHint] = useState("");
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -110,6 +118,45 @@ export default function KanbanPage() {
 
   useEffect(() => {
     void fetchTasks();
+  }, []);
+
+  const checkProxyHealth = async () => {
+    try {
+      const res = await fetch("/api/proxy/health", {
+        method: "GET",
+        credentials: "include",
+        cache: "no-store",
+      });
+
+      let payload: ProxyHealthResponse | null = null;
+      try {
+        payload = (await res.json()) as ProxyHealthResponse;
+      } catch {
+        payload = null;
+      }
+
+      if (!res.ok || !payload?.ok) {
+        setBackendOk(false);
+        const statusText = payload?.upstream_status != null ? `upstream_status=${payload.upstream_status}` : "upstream_status=unknown";
+        const shortError = payload?.error ? sanitizeErrorText(payload.error).slice(0, 120) : "health check failed";
+        setHealthHint(`${statusText} ${shortError}`.trim());
+        return;
+      }
+
+      setBackendOk(true);
+      setHealthHint("");
+    } catch {
+      setBackendOk(false);
+      setHealthHint("upstream_status=unknown request failed");
+    }
+  };
+
+  useEffect(() => {
+    void checkProxyHealth();
+    const timer = setInterval(() => {
+      void checkProxyHealth();
+    }, 30_000);
+    return () => clearInterval(timer);
   }, []);
 
   const visibleTasks = useMemo(() => {
@@ -323,6 +370,26 @@ export default function KanbanPage() {
               <p className="text-sm text-slate-300">Operational task flow with parent and child tracking</p>
             </div>
             <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-2">
+                <span
+                  className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                    backendOk ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800"
+                  }`}
+                  title={backendOk ? "Proxy health is normal" : healthHint || "Backend issue detected"}
+                >
+                  {backendOk ? "Backend OK" : "Backend Issue"}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    void checkProxyHealth();
+                    void fetchTasks();
+                  }}
+                  className="rounded-md bg-slate-100 px-3 py-1.5 text-sm font-medium text-slate-900 transition hover:bg-white"
+                >
+                  Retry
+                </button>
+              </div>
               <button
                 type="button"
                 onClick={() => void fetchTasks()}
@@ -359,6 +426,7 @@ export default function KanbanPage() {
               </label>
             </div>
           </div>
+          {!backendOk && healthHint ? <p className="mt-1 text-xs text-rose-200">{healthHint}</p> : null}
         </header>
 
         {loading ? <p className="text-sm text-slate-600">Loading...</p> : null}
