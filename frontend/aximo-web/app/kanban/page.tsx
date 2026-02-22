@@ -537,6 +537,7 @@ export default function KanbanPage() {
                 />
                 Group by parent
               </label>
+              <span className="text-xs text-slate-300">v:cf27283</span>
             </div>
           </div>
           {!backendOk && healthHint ? <p className="mt-1 text-xs text-rose-200">{healthHint}</p> : null}
