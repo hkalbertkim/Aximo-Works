@@ -10,6 +10,7 @@ type Task = {
   status: TaskStatus;
   parent_id: string | null;
   created_at: string;
+  updated_at?: string | null;
   due_date?: string | null;
 };
 
@@ -42,6 +43,54 @@ const formatCreatedAt = (value: string) => {
     hour: "2-digit",
     minute: "2-digit",
   });
+};
+
+type DueSeverity = "overdue" | "due_soon" | "upcoming" | "no_due";
+
+const parseDateSafe = (value?: string | null): Date | null => {
+  if (!value) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const [y, m, d] = value.split("-").map(Number);
+    return new Date(y, m - 1, d, 23, 59, 59, 999);
+  }
+  const dt = new Date(value);
+  return Number.isNaN(dt.getTime()) ? null : dt;
+};
+
+const getDueSeverity = (task: Task, now = new Date()): { severity: DueSeverity; rank: number; dueAt: Date | null } => {
+  const dueAt = parseDateSafe(task.due_date);
+  if (!dueAt) return { severity: "no_due", rank: 3, dueAt: null };
+
+  const h24 = 24 * 60 * 60 * 1000;
+  const h72 = 72 * 60 * 60 * 1000;
+  const nowMs = now.getTime();
+  const dueMs = dueAt.getTime();
+
+  if (dueMs < nowMs) return { severity: "overdue", rank: 0, dueAt };
+  if (dueMs < nowMs + h24) return { severity: "due_soon", rank: 1, dueAt };
+  if (dueMs < nowMs + h72) return { severity: "upcoming", rank: 2, dueAt };
+  return { severity: "no_due", rank: 3, dueAt };
+};
+
+const isDoneOlderThan7Days = (task: Task, now = new Date()) => {
+  if (task.status !== "done") return false;
+  const ref = parseDateSafe(task.updated_at ?? task.created_at);
+  if (!ref) return false;
+  return ref.getTime() < now.getTime() - 7 * 24 * 60 * 60 * 1000;
+};
+
+const dueBadgeClass = (severity: DueSeverity) => {
+  if (severity === "overdue") return "bg-rose-100 text-rose-700";
+  if (severity === "due_soon") return "bg-orange-100 text-orange-700";
+  if (severity === "upcoming") return "bg-amber-100 text-amber-700";
+  return "";
+};
+
+const dueBadgeLabel = (severity: DueSeverity) => {
+  if (severity === "overdue") return "Overdue";
+  if (severity === "due_soon") return "Due Soon";
+  if (severity === "upcoming") return "Upcoming";
+  return "";
 };
 
 export default function KanbanPage() {
@@ -167,20 +216,34 @@ export default function KanbanPage() {
       if (!showTestTasks && isTestTask(task.text)) {
         return false;
       }
+      if (isDoneOlderThan7Days(task)) {
+        return false;
+      }
       return true;
     });
   }, [tasks, archivedIds, showTestTasks]);
 
   const tasksByStatus = useMemo(() => {
+    const sorter = (a: Task, b: Task) => {
+      const sa = getDueSeverity(a);
+      const sb = getDueSeverity(b);
+      if (sa.rank !== sb.rank) return sa.rank - sb.rank;
+      if (sa.dueAt && sb.dueAt) return sa.dueAt.getTime() - sb.dueAt.getTime();
+      if (sa.dueAt && !sb.dueAt) return -1;
+      if (!sa.dueAt && sb.dueAt) return 1;
+      const ac = parseDateSafe(a.created_at)?.getTime() ?? 0;
+      const bc = parseDateSafe(b.created_at)?.getTime() ?? 0;
+      return bc - ac;
+    };
     return {
-      pending_approval: visibleTasks.filter((t) => t.status === "pending_approval"),
-      approved: visibleTasks.filter((t) => t.status === "approved"),
-      done: visibleTasks.filter((t) => t.status === "done"),
+      pending_approval: visibleTasks.filter((t) => t.status === "pending_approval").sort(sorter),
+      approved: visibleTasks.filter((t) => t.status === "approved").sort(sorter),
+      done: visibleTasks.filter((t) => t.status === "done").sort(sorter),
     };
   }, [visibleTasks]);
 
   const archivedTasks = useMemo(() => {
-    return tasks.filter((task) => archivedIds.has(task.id));
+    return tasks.filter((task) => archivedIds.has(task.id) || isDoneOlderThan7Days(task));
   }, [tasks, archivedIds]);
 
   useEffect(() => {
@@ -247,6 +310,9 @@ export default function KanbanPage() {
     grouped = false
   ) => {
     const isChild = task.parent_id != null;
+    const due = getDueSeverity(task);
+    const dueClass = dueBadgeClass(due.severity);
+    const dueLabel = dueBadgeLabel(due.severity);
 
     return (
       <div key={task.id} className={grouped ? "space-y-2" : ""}>
@@ -297,7 +363,8 @@ export default function KanbanPage() {
             <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
               <span className="rounded bg-slate-100 px-2 py-0.5 font-mono">{task.id.slice(0, 8)}</span>
               <span>{formatCreatedAt(task.created_at)}</span>
-              {task.due_date ? <span className="rounded bg-rose-100 px-2 py-0.5 text-rose-700">Due: {task.due_date}</span> : null}
+              {task.due_date ? <span className="rounded bg-slate-100 px-2 py-0.5">Due: {task.due_date}</span> : null}
+              {dueLabel ? <span className={`rounded px-2 py-0.5 ${dueClass}`}>{dueLabel}</span> : null}
             </div>
 
             <div className="flex flex-wrap gap-2 pt-1">
@@ -554,6 +621,11 @@ export default function KanbanPage() {
                         <p className="truncate text-sm font-medium text-slate-900">{task.text}</p>
                         <div className="flex items-center gap-2 text-xs text-slate-500">
                           <span className="rounded bg-white px-2 py-0.5 font-mono">{task.id.slice(0, 8)}</span>
+                          {isDoneOlderThan7Days(task) ? (
+                            <span className="rounded-full bg-slate-200 px-2 py-0.5 font-semibold uppercase tracking-wide text-slate-700">
+                              Done &gt; 7d
+                            </span>
+                          ) : null}
                           <span
                             className={`rounded-full px-2 py-0.5 font-semibold uppercase tracking-wide ${
                               task.status === "pending_approval"
@@ -567,13 +639,15 @@ export default function KanbanPage() {
                           </span>
                         </div>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => unarchiveTask(task.id)}
-                        className="shrink-0 rounded-md bg-slate-700 px-2.5 py-1 text-xs font-medium text-white transition hover:bg-slate-800"
-                      >
-                        Unarchive
-                      </button>
+                      {archivedIds.has(task.id) ? (
+                        <button
+                          type="button"
+                          onClick={() => unarchiveTask(task.id)}
+                          className="shrink-0 rounded-md bg-slate-700 px-2.5 py-1 text-xs font-medium text-white transition hover:bg-slate-800"
+                        >
+                          Unarchive
+                        </button>
+                      ) : null}
                     </div>
                   </div>
                 ))}
