@@ -521,16 +521,12 @@ def reject_task(task_id: str, payload: TaskRejectRequest) -> Task:
 
 @app.post("/telegram/webhook")
 async def telegram_webhook(request: Request) -> JSONResponse:
-    secret = (
-        request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
-        or request.headers.get("X-Telegram-Secret", "")
-    ).strip()
+    secret = request.headers.get("X-Telegram-Secret", "").strip()
     if not TELEGRAM_WEBHOOK_SECRET or secret != TELEGRAM_WEBHOOK_SECRET:
         return JSONResponse(status_code=401, content={"detail": "Unauthorized"})
 
     try:
         update = await request.json()
-        print(f"TELEGRAM webhook received keys={list(update.keys()) if isinstance(update, dict) else type(update)}", flush=True)
     except Exception:
         return JSONResponse(status_code=200, content={"ok": True})
 

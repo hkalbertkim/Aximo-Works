@@ -530,7 +530,6 @@ async def telegram_webhook(request: Request) -> JSONResponse:
 
     try:
         update = await request.json()
-        print(f"TELEGRAM webhook received keys={list(update.keys()) if isinstance(update, dict) else type(update)}", flush=True)
     except Exception:
         return JSONResponse(status_code=200, content={"ok": True})
 
