@@ -13,3 +13,6 @@ backend/aximo.db
 ops/backups/
 ops/state/
 ops/today_snapshot.md
+
+# Local path artifacts
+02_PROJECTS/
