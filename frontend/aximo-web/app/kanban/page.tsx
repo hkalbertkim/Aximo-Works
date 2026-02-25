@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
-type TaskStatus = "pending_approval" | "approved" | "done";
+type TaskStatus = "pending_approval" | "approved" | "rejected" | "done";
 
 type Task = {
   id: string;
@@ -38,6 +38,7 @@ const ALERT_WEBHOOK =
 const columns: Array<{ key: TaskStatus; title: string; barClass: string }> = [
   { key: "pending_approval", title: "Open", barClass: "bg-amber-400" },
   { key: "approved", title: "In Progress", barClass: "bg-sky-500" },
+  { key: "rejected", title: "Rejected", barClass: "bg-rose-500" },
   { key: "done", title: "Done", barClass: "bg-emerald-500" },
 ];
 
@@ -158,6 +159,8 @@ export default function KanbanPage() {
   const [archivedIds, setArchivedIds] = useState<Set<string>>(new Set());
   const [expandedParentIds, setExpandedParentIds] = useState<Set<string>>(new Set());
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [showDebug, setShowDebug] = useState(false);
+
   const [showArchivedPanel, setShowArchivedPanel] = useState(false);
   const [backendOk, setBackendOk] = useState(true);
   const [healthHint, setHealthHint] = useState("");
@@ -166,6 +169,19 @@ export default function KanbanPage() {
   const wasBackendOkRef = useRef(true);
 
   useEffect(() => {
+  try {
+    const raw = localStorage.getItem("aximo_show_debug");
+    if (raw === "1") setShowDebug(true);
+  } catch {}
+}, []);
+
+useEffect(() => {
+  try {
+    localStorage.setItem("aximo_show_debug", showDebug ? "1" : "0");
+  } catch {}
+}, [showDebug]);
+
+useEffect(() => {
     if (typeof window === "undefined") {
       return;
     }
@@ -321,6 +337,7 @@ export default function KanbanPage() {
     return {
       pending_approval: visibleTasks.filter((t) => t.status === "pending_approval").sort(sorter),
       approved: visibleTasks.filter((t) => t.status === "approved").sort(sorter),
+      rejected: visibleTasks.filter((t) => t.status === "rejected").sort(sorter),
       done: visibleTasks.filter((t) => t.status === "done").sort(sorter),
     };
   }, [visibleTasks]);
@@ -496,24 +513,30 @@ export default function KanbanPage() {
             </div>
 
             <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-              <span className="rounded bg-slate-100 px-2 py-0.5 font-mono">{task.id.slice(0, 8)}</span>
-              <span>{formatCreatedAt(task.created_at)}</span>
+              {showDebug ? (
+                <>
+                  <span className="rounded bg-slate-100 px-2 py-0.5 font-mono">{task.id.slice(0, 8)}</span>
+                  <span>{formatCreatedAt(task.created_at)}</span>
+                </>
+              ) : null}
               <span className="rounded bg-slate-800 px-2 py-0.5 text-white">P:{pressure.p2}</span>
               {task.due_date ? <span className="rounded bg-slate-100 px-2 py-0.5">Due: {task.due_date}</span> : null}
               {dueLabel ? <span className={`rounded px-2 py-0.5 ${dueClass}`}>{dueLabel}</span> : null}
             </div>
             <div className="text-xs text-slate-500">
               {task.owner ? <span className="mr-2">Owner: {task.owner}</span> : null}
-              <span>
-                prio:{priority} w:{weight}
-              </span>
+              {showDebug ? (
+                <span>
+                  prio:{priority} w:{weight}
+                </span>
+              ) : null}
               {task.text.startsWith("[DEMO] Due Soon") ? (
                 <span className="ml-2 text-slate-400">
                   ts:{pressure.timeScore} base:{pressure.base.toFixed(2)} p2:{pressure.p2}
                 </span>
               ) : null}
             </div>
-            {isApproved && task.approved_at ? (
+            {showDebug && isApproved && task.approved_at ? (
               <div className="text-xs text-slate-400">
                 Approved by {task.approved_by || "admin"} at {formatCreatedAt(task.approved_at)}
               </div>
@@ -616,6 +639,22 @@ export default function KanbanPage() {
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
               <h1 className="text-xl font-semibold tracking-tight">Kanban Board</h1>
+              <div className="mt-2 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowDebug((v) => !v);
+                  }}
+                  className={`rounded-md border px-2 py-1 text-xs font-medium transition ${
+                    showDebug ? "border-amber-300 bg-amber-100 text-amber-900" : "border-slate-600 bg-slate-800 text-slate-200"
+                  }`}
+                >
+                  Debug: {showDebug ? "ON" : "OFF"}
+                </button>
+                <span className="text-xs text-slate-400">Hide/show verbose diagnostics</span>
+              </div>
+
               <p className="text-sm text-slate-300">Operational task flow with parent and child tracking</p>
             </div>
             <div className="flex flex-wrap items-center gap-3">
@@ -705,7 +744,7 @@ export default function KanbanPage() {
         ) : null}
 
         <div className="relative">
-          <div className={`grid gap-4 md:grid-cols-3 ${backendOk ? "" : "pointer-events-none opacity-70"}`}>
+          <div className={`grid gap-4 md:grid-cols-4 ${backendOk ? "" : "pointer-events-none opacity-70"}`}>
             {columns.map((column) => {
               const inColumn = tasksByStatus[column.key];
               const pressureTotal = inColumn.reduce((sum, task) => sum + computePressure(task, Date.now()).p2, 0);

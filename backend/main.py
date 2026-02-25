@@ -29,7 +29,7 @@ class TaskCreateRequest(BaseModel):
 
 
 class TaskStatusUpdateRequest(BaseModel):
-    status: Literal["pending_approval", "approved", "done"]
+    status: Literal["pending_approval", "approved", "rejected", "done"]
 
 
 class TaskRejectRequest(BaseModel):
@@ -40,7 +40,7 @@ class Task(BaseModel):
     id: str
     text: str
     type: Literal["internal_generate", "external_execute"]
-    status: Literal["pending_approval", "approved", "done"]
+    status: Literal["pending_approval", "approved", "rejected", "done"]
     parent_id: str | None = None
     created_at: str
     output: dict | None = None
@@ -64,6 +64,7 @@ class SummaryResult(BaseModel):
 
 app = FastAPI()
 AXIMO_API_TOKEN = os.getenv("AXIMO_API_TOKEN", "").strip()
+AXIMO_DEBUG_EVENTS = os.getenv("AXIMO_DEBUG_EVENTS", "").strip() in ("1","true","TRUE","yes","YES")
 AXIMO_IP_ALLOWLIST = [ip.strip() for ip in os.getenv("AXIMO_IP_ALLOWLIST", "").split(",") if ip.strip()]
 
 
@@ -123,6 +124,28 @@ def get_db_connection() -> sqlite3.Connection:
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
+
+def insert_task_event(conn, task_id: str, event_type: str, from_status: str | None,
+                      to_status: str | None, actor: str | None, reason: str | None):
+    conn.execute(
+        """
+        INSERT INTO task_events (
+            id, task_id, event_type, from_status, to_status, actor, reason, created_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            str(uuid4()),
+            task_id,
+            event_type,
+            from_status,
+            to_status,
+            actor,
+            reason,
+            datetime.now(timezone.utc).isoformat(),
+        ),
+    )
+
 
 
 def normalize_priority(priority: str | None) -> Literal["low", "medium", "high"]:
@@ -352,7 +375,7 @@ def reject_task_internal(task_id: str, reason: str | None, rejected_by: str = "a
             SET status = ?, rejected_at = ?, rejected_by = ?, reject_reason = ?
             WHERE id = ?
             """,
-            ("pending_approval", rejected_at, rejected_by, reject_reason, task_id),
+            ("rejected", rejected_at, rejected_by, reject_reason, task_id),
         )
         conn.commit()
         updated = get_task_by_id(conn, task_id)
@@ -546,6 +569,9 @@ async def telegram_webhook(request: Request) -> JSONResponse:
                 task_id = data.split(":", 1)[1].strip()
                 try:
                     updated = approve_task_internal(task_id, approved_by="admin")
+                    with get_db_connection() as evconn:
+                        insert_task_event(evconn, task_id, "approved", "pending_approval", "approved", "admin", None)
+                        evconn.commit()
                     if chat_id is not None:
                         send_telegram_notify(f"✅ Approved: {task_title(updated)} (id:{short_id(updated.id)})", chat_id=chat_id)
                 except HTTPException as e:
@@ -570,6 +596,9 @@ async def telegram_webhook(request: Request) -> JSONResponse:
                     reason = parts[2].strip()
                     try:
                         updated = reject_task_internal(task_id, reason, rejected_by="admin")
+                        with get_db_connection() as evconn:
+                            insert_task_event(evconn, task_id, "rejected", "pending_approval", "rejected", "admin", reason)
+                            evconn.commit()
                         if chat_id is not None:
                             send_telegram_notify(f"❌ Rejected: {task_title(updated)} (id:{short_id(updated.id)})", chat_id=chat_id)
                     except HTTPException as e:
@@ -607,6 +636,11 @@ def update_task_status(task_id: str, payload: TaskStatusUpdateRequest) -> Task:
         conn.commit()
 
     if previous_status != payload.status:
+        with get_db_connection() as evconn:
+            if AXIMO_DEBUG_EVENTS:
+                print(f"EVENTLOG status_changed {task_id} {previous_status}->{payload.status}", flush=True)
+            insert_task_event(evconn, task_id, "status_changed", previous_status, payload.status, "admin", None)
+            evconn.commit()
         send_telegram_notify(f"🔄 Status: {task_title(updated)} → {payload.status} (id:{short_id(updated.id)})")
         if payload.status == "done":
             send_telegram_notify(f"🎉 Done: {task_title(updated)} (id:{short_id(updated.id)})")
@@ -627,7 +661,7 @@ def run_task(task_id: str) -> Task:
             build_summary_prompt(task.text, action_items_count=3, questions_count=2)
         )
         ran_at = datetime.now(timezone.utc).isoformat()
-        next_status: Literal["pending_approval", "approved", "done"] = (
+        next_status: Literal["pending_approval", "approved", "rejected", "done"] = (
             "approved" if task.type == "internal_generate" else "done"
         )
 
