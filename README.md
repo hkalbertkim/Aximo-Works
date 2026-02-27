@@ -3,131 +3,226 @@
 </p>
 
 <p align="center">
-  <b>AXIMO</b> — An Autonomous Company OS<br/>
+  <b>AXIMO</b> — Execution Pressure Operating System  
   Built by <b>Aximo Works</b>
 </p>
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-BSL%201.1-blue" alt="License"></a>
-  <img src="https://img.shields.io/badge/status-MVP--0.9-orange" alt="Status">
-  <img src="https://img.shields.io/badge/architecture-local--first-success" alt="Architecture">
+  <img src="https://img.shields.io/badge/status-ExecutionOS%20v1-green" alt="Status">
+  <img src="https://img.shields.io/badge/mode-SingleFounder-orange" alt="Mode">
 </p>
 
 ---
 
-# Concept
+# Why AXIMO Exists
 
-Most companies do not fail because of lack of intelligence.
-They fail because execution depends on human memory and emotional pressure.
+Most small companies do not collapse because of lack of intelligence.
 
-AXIMO is an **Autonomous Company OS**.
+They collapse because execution depends on:
 
-It is designed to transform a founder-led team into a structure-driven execution system — and ultimately enable a company to operate with minimal human dependency.
+- Memory
+- Mood
+- Follow-ups
+- Emotional escalation
+- The founder’s personal energy
 
-The long-term vision:
-
-> Build an environment where a founder can run a company solo or with a very small team — and still scale to a 1-person unicorn.
-
----
-
-# The Problem
-
-In most small teams:
+In early-stage teams:
 
 - Tasks are assigned verbally.
 - Deadlines are flexible.
-- Follow-ups depend on the founder.
 - Avoidance has no structural consequence.
-- Performance evaluation is emotional, not data-driven.
+- Follow-up depends on the founder.
+- Silence is invisible.
 
 The founder becomes:
 
-- A reminder system
-- A human escalation engine
-- The bottleneck for execution
+- A reminder system  
+- A human escalation engine  
+- A bottleneck  
 
-Execution decays over time.
+Execution decays quietly.
 
----
-
-# The Solution: Autonomous Company OS
-
-AXIMO introduces structure where pressure used to be emotional.
-
-It is not a task manager.
-It is not a productivity app.
-
-It is a system that converts communication into measurable execution.
-
-Autonomy is not culture.
-Autonomy is the result of enforced structure.
+AXIMO exists to replace emotional pressure with structural pressure.
 
 ---
 
-# v1 — Execution Pressure System (EPS)
+# What AXIMO Is
 
-The first layer of AXIMO is the **Execution Pressure System**.
+AXIMO is **not** a productivity app.  
+It is not a chat assistant.  
+It is not a project management dashboard.
 
-Execution Pressure means:
+AXIMO is a:
 
-- Tasks must be acknowledged
-- Deadlines are visible
-- Progress is checked automatically
-- Silence becomes measurable
-- Repeated neglect becomes visible as data
+> Deterministic Execution Operating System.
 
-EPS integrates with:
+It converts communication into:
 
-- Telegram
-- Slack (planned)
-- WhatsApp (planned)
+- Explicit state transitions  
+- Measurable execution pressure  
+- Logged accountability  
+- Scheduled escalation  
+- Structural transparency  
 
-It removes ambiguity from execution.
-
-It does not judge people.
-It records behavior.
+Autonomy is not culture.  
+Autonomy is enforced structure.
 
 ---
 
-# How EPS Works
+# Current State — Execution OS v1
 
-1. Conversation → Task extraction
-2. Task → Owner acknowledgment required
-3. Deadline → System-tracked
-4. Automated check-ins (2–3x daily)
-5. Non-response → Logged
-6. Pattern detection → Risk visibility
+AXIMO is currently operating in:
+
+> **Single-Founder Mode (Phase 1 Locked)**
+
+The system is:
+
+- Deterministic  
+- Auditable  
+- Telegram-integrated  
+- Pressure-scored  
+- Scheduled  
+- Launchd-managed  
+- Production-stable  
+
+This is not a prototype anymore.  
+It is a functioning execution loop.
+
+---
+
+# How the System Works
+
+## 1. Explicit State Machine
+
+Every task exists in one of four states:
+
+```
+pending_approval
+approved
+rejected
+done
+```
+
+Rejected is not a note.  
+It is a structural state.
+
+State transitions are recorded.  
+Nothing disappears silently.
+
+---
+
+## 2. Approval Gate
+
+Execution cannot proceed without approval.
+
+This removes ambiguity:
+
+- No "I thought you meant…"
+- No "I’ll do it later."
+- No invisible backlog accumulation.
+
+---
+
+## 3. Audit Layer
+
+All structural transitions are logged in `task_events`.
+
+Each event records:
+
+- from_status
+- to_status
+- actor
+- reason
+- timestamp
+
+AXIMO is fully auditable.
+
+This is not surveillance.  
+It is structural memory.
+
+---
+
+## 4. Execution Pressure (P2 Model)
+
+AXIMO calculates dynamic execution pressure:
+
+```
+P2 = ceil(weight × priority_factor × timeScore)
+```
+
+Priority factor:
+
+- high → 2.0  
+- medium → 1.0  
+- low → 0.5
+
+TimeScore buckets:
+
+- overdue  
+- due soon  
+- upcoming  
+- no due
+
+Escalation policy (v1):
+
+- status = pending_approval  
+- P2 > 0  
+- Top 3 tasks  
+- Telegram push  
+- 09:00 / 13:00 local time  
+
+Silence becomes measurable.
+
+Neglect becomes visible.
+
+Pressure becomes structural — not emotional.
+
+---
+
+# Control Loop
+
+Founder  
+→ Task created  
+→ Approval gate  
+→ Execution  
+→ Audit log  
+→ Pressure scoring  
+→ Scheduled escalation  
+→ Telegram feedback  
+
+The loop is closed.
 
 The founder stops chasing.
+
 The system applies consistent pressure.
 
 ---
 
-# Long-Term Vision
+# Architecture
 
-Execution Pressure → Transparency → Automation → Autonomy.
+Backend:
+- FastAPI
+- SQLite
+- Launchd-managed service
+- Webhook-driven Telegram integration
 
-Once execution becomes measurable:
+Frontend:
+- Next.js
+- 4-column Kanban state model
+- Debug toggle system
+- Pressure visualization
 
-- Automation candidates become obvious
-- Organizational inefficiencies surface
-- Dependency on individuals decreases
-- The company becomes structurally autonomous
+Scheduler:
+- launchd calendar triggers
+- telegram_pressure_alert.py
 
-The goal is not to remove people.
+Security:
+- Cloudflare Access
+- Webhook secret validation
 
-The goal is to remove structural fragility.
-
----
-
-# Architecture (MVP-0.9)
-
-- Backend: FastAPI (uvicorn)
-- Frontend: Next.js
-- Database: SQLite
-- Security: Cloudflare Access
-- Deployment: macOS launchd
-- LLM: Ollama (local inference)
+LLM:
+- Ollama (local inference)
 
 Public entry (protected):
 https://meeting.aximo.works
@@ -136,25 +231,42 @@ https://meeting.aximo.works
 
 # Roadmap
 
-Phase 1 — Execution Pressure System
-- Telegram-native pressure loop
-- Daily founder report
-- Execution risk scoring
+## Phase 1 — Execution Pressure (Complete)
+- Deterministic approval gate
+- Explicit rejected state
+- Audit trail
+- Pressure scoring
+- Scheduled escalation
 
-Phase 2 — Organizational Transparency
-- Measurable execution analytics
-- Performance visibility
-- Structured improvement workflows
+## Phase 2 — Multi-Operator Mode
+- Owner-based segmentation
+- Escalation hierarchy
+- Delay detection logic
+- Overdue forced inclusion
 
-Phase 3 — Automation Layer
-- Identify repetitive workflows
-- AI-driven task replacement
-- Modular execution packs (Sales, Marketing, Finance)
+## Phase 3 — Transparency Layer
+- Execution analytics
+- Behavioral pattern detection
+- Risk heatmaps
 
-Phase 4 — Autonomous Company OS
-- Self-sustaining execution loops
-- Minimal human intervention
-- Founder operates at strategy level only
+## Phase 4 — Autonomous Company OS
+
+The ultimate goal:
+
+> Enable a founder to operate a company solo —  
+> or with a very small team —  
+> while maintaining execution consistency at scale.
+
+Execution Pressure → Transparency → Automation → Autonomy.
+
+---
+
+# Documentation
+
+- `docs/aximo/specs/` — System specifications  
+- `docs/aximo/skills/` — Skill contracts  
+- `docs/runbooks/` — Operational guides  
+- `docs/reports/` — Context snapshots  
 
 ---
 
@@ -162,7 +274,7 @@ Phase 4 — Autonomous Company OS
 
 This project is source-available under the Business Source License 1.1 (BSL 1.1).
 
-You may use it for evaluation and internal purposes.
-You may not offer it as a hosted service or competing SaaS prior to the Change Date.
+Internal use and evaluation permitted.  
+No competing hosted service prior to Change Date.
 
-On 2029-01-01 it converts to Apache 2.0.
+Converts to Apache 2.0 on 2029-01-01.
