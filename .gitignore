@@ -16,3 +16,5 @@ ops/today_snapshot.md
 
 # Local path artifacts
 02_PROJECTS/
+
+*.bak_*
