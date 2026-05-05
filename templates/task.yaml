@@ -1,0 +1,28 @@
+id: TASK-0000
+project: aximo_os
+department: operations
+task_type: planning
+priority: medium
+status: queued
+owner: unassigned
+agent_role: coordinator
+tools_allowed:
+  - codex_app
+input_artifacts:
+  - path: dashboards/dashboard.md
+    description: Current portfolio state.
+expected_outputs:
+  - path: reports/project/example.md
+    description: Short implementation or handoff report.
+approval:
+  required: false
+  approver: human_owner
+  notes: Approval required before external publication, deployment, or sensitive changes.
+constraints:
+  - Do not add secrets.
+  - Do not connect external services.
+  - Prefer Markdown, YAML, and Python standard library.
+risk:
+  level: low
+  notes: File-based planning task only.
+report_required: true

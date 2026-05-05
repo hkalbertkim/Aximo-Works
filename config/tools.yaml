@@ -1,0 +1,61 @@
+tools:
+  - id: chatgpt_web
+    type: ai_assistant
+    capabilities:
+      - planning
+      - drafting
+      - analysis
+      - review
+    approval_notes: May draft and analyze; must not publish or connect services without approval.
+
+  - id: codex_app
+    type: coding_agent
+    capabilities:
+      - repository editing
+      - local scripts
+      - validation
+      - report generation
+    approval_notes: May edit local files; must not commit, push, deploy, or change GitHub settings without approval.
+
+  - id: codex_cli
+    type: coding_agent
+    capabilities:
+      - terminal workflows
+      - local automation
+      - code generation
+      - validation
+    approval_notes: Use for local work only unless explicit approval is given.
+
+  - id: openclaw
+    type: local_orchestration_tool
+    capabilities:
+      - local orchestration
+      - browser automation
+      - screen or UI assistance
+      - notification bridge
+    approval_notes: Placeholder only; do not connect external services in v0.1.
+
+  - id: local_gemma_coder
+    type: local_model
+    capabilities:
+      - local code assistance
+      - offline drafting
+      - constrained review
+    approval_notes: Keep outputs reviewed by a human or primary coding agent before applying.
+
+  - id: github
+    type: source_control_platform
+    capabilities:
+      - repository hosting
+      - issues
+      - pull requests
+      - code review
+    approval_notes: All push, PR, merge, release, settings, secrets, and visibility changes require explicit human approval.
+
+  - id: telegram
+    type: communication_platform
+    capabilities:
+      - notifications
+      - human updates
+      - lightweight command routing
+    approval_notes: Intended for future approval notifications only; no bot token should be stored in this repo.

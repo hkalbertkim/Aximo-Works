@@ -1,0 +1,29 @@
+# Local execution nodes for Aximo Control; these are not shared iCloud folders.
+machines:
+  - id: M3-1
+    role: primary_command_control_high_priority_development
+    status: active
+    primary_use: Command/control, repository work, and high-priority development execution.
+    active_projects:
+      - kora
+      - morphosnn
+    max_parallel_tasks: 3
+    notes: Primary machine for Aximo Control v0.1.
+
+  - id: M1
+    role: coordinator_serving_long_running_support
+    status: available
+    primary_use: Coordination, serving, lightweight research, review, and long-running support tasks.
+    active_projects: []
+    max_parallel_tasks: 1
+    notes: Use for bounded tasks that do not require high local compute.
+
+  - id: M3-2
+    role: secondary_execution_experiment_worker
+    status: available
+    primary_use: Parallel development, experiments, and validation runs.
+    active_projects:
+      - permea_lab
+      - vivido_tv
+    max_parallel_tasks: 2
+    notes: Secondary machine for isolated project work.
