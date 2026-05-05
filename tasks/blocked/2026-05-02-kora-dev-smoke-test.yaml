@@ -1,0 +1,19 @@
+task_id: 2026-05-02-kora-dev-smoke-test
+project: kora
+department: dev
+task_type: smoke_test
+title: Run KORA smoke tests
+priority: high
+status: blocked
+owner_machine: M3-1
+agent_role: executor
+allowed_tools:
+- codex_app
+input_artifacts: []
+expected_output_artifacts: []
+approval_required: false
+constraints: []
+risk_level: low
+report_required: true
+created_at: '2026-05-02T17:59:44+02:00'
+updated_at: '2026-05-03T14:13:19+02:00'

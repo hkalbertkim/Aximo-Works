@@ -1,0 +1,63 @@
+# Current portfolio state for Aximo Control.
+projects:
+  - id: kora
+    name: KORA
+    status: active
+    priority: high
+    owner_machine: M3-1
+    repository: placeholder://repositories/kora
+    local_path: /Users/albertkim/02_PROJECTS/05_KORA
+    department_focus:
+      - dev
+      - product
+      - docs_proposal
+    current_focus: Execution-layer architecture, telemetry, CLI hardening, and proposal/investor readiness.
+    next_action: Create or update DEVOS for current KORA development state.
+    blocked: false
+
+  - id: permea_lab
+    name: Permea-lab
+    status: warm
+    priority: high
+    owner_machine: M3-2
+    repository: placeholder://repositories/permea-lab
+    local_path: /Users/albertkim/02_PROJECTS/18_Permea-lab
+    department_focus:
+      - dev
+      - docs_proposal
+      - product
+    current_focus: Open-source delivery intelligence layer, reviewer package, benchmark artifacts, and reproducibility docs.
+    next_action: Create or update DEVOS for Permea-lab and register current repo structure.
+    blocked: false
+
+  - id: vivido_tv
+    name: Vivido_TV
+    status: active
+    priority: high
+    owner_machine: M3-2
+    repository: https://github.com/hkalbertkim/Vivido_TV.git
+    local_path: /Users/albertkim/01_PROJECTS/00_Vivido_TV
+    branch: main
+    department_focus:
+      - dev
+      - product
+      - marketing
+      - operations
+    current_focus: Beta readiness, Mika loop, voice and persona quality, and beta deployment readiness.
+    next_action: Clean or classify untracked file `11.13.0` before the next Vivido_TV development commit.
+    blocked: false
+
+  - id: morphosnn
+    name: MorphoSNN
+    status: research
+    priority: medium
+    owner_machine: M3-1
+    repository: placeholder://repositories/morphosnn
+    local_path: /Users/albertkim/02_PROJECTS/21_MorphoSNN
+    department_focus:
+      - dev
+      - docs_proposal
+      - product
+    current_focus: Bio-inspired neuromorphic control architecture, research organization, and proposal-ready technical framing.
+    next_action: Create or update DEVOS for current research/proposal state.
+    blocked: false

@@ -1,0 +1,112 @@
+departments:
+  - id: dev
+    name: Development
+    purpose: Build, test, and maintain software systems.
+    allowed_outputs:
+      - code changes
+      - technical plans
+      - implementation reports
+      - validation logs
+    approval_required_for:
+      - pushes to remote branches
+      - pull requests
+      - merges
+      - production deploys
+      - dependency additions
+      - architecture changes
+
+  - id: product
+    name: Product
+    purpose: Define product direction, requirements, and user-facing scope.
+    allowed_outputs:
+      - product briefs
+      - roadmap notes
+      - acceptance criteria
+    approval_required_for:
+      - scope changes
+      - public positioning
+      - feature commitments
+
+  - id: marketing
+    name: Marketing
+    purpose: Shape messaging, positioning, campaigns, and audience understanding.
+    allowed_outputs:
+      - positioning notes
+      - campaign drafts
+      - audience research
+    approval_required_for:
+      - public launch copy
+      - public-facing outputs
+      - external-facing outputs
+      - paid campaigns
+      - brand changes
+
+  - id: sales
+    name: Sales
+    purpose: Manage sales workflows, leads, and commercial follow-up.
+    allowed_outputs:
+      - sales notes
+      - pipeline summaries
+      - outreach drafts
+    approval_required_for:
+      - customer commitments
+      - public-facing outputs
+      - external-facing outputs
+      - pricing changes
+      - contract terms
+
+  - id: customer_support
+    name: Customer Support
+    purpose: Track user issues, feedback, and support responses.
+    allowed_outputs:
+      - support summaries
+      - response drafts
+      - issue reports
+    approval_required_for:
+      - customer-facing commitments
+      - public-facing outputs
+      - external-facing outputs
+      - refunds or credits
+      - sensitive account handling
+
+  - id: docs_proposal
+    name: Docs And Proposals
+    purpose: Produce documentation, proposals, specifications, and written project artifacts.
+    allowed_outputs:
+      - documentation drafts
+      - proposals
+      - specifications
+      - research summaries
+    approval_required_for:
+      - external proposals
+      - public-facing outputs
+      - external-facing outputs
+      - published documentation
+      - legal or commercial claims
+
+  - id: operations
+    name: Operations
+    purpose: Coordinate machines, tasks, approvals, reports, and operating cadence.
+    allowed_outputs:
+      - dashboards
+      - task queues
+      - operating reports
+      - review notes
+    approval_required_for:
+      - workflow policy changes
+      - automation changes
+      - access changes
+
+  - id: finance_admin
+    name: Finance And Admin
+    purpose: Track administrative work, budgets, invoices, and finance-related planning.
+    allowed_outputs:
+      - admin checklists
+      - finance summaries
+      - budget notes
+    approval_required_for:
+      - payments
+      - contracts
+      - financial commitments
+      - public-facing outputs
+      - external-facing outputs
